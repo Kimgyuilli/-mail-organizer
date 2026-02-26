@@ -1,0 +1,27 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Mail Organizer - Gmail/네이버 메일 통합 관리 백엔드"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]",
+    "sqlalchemy",
+    "aiosqlite",
+    "python-dotenv",
+    "httpx",
+    "anthropic",
+    "pydantic-settings",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.2",
+]
