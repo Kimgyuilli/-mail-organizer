@@ -4,9 +4,9 @@
 
 | 태스크 | 담당 | 상태 | 의존 | 비고 |
 |--------|------|------|------|------|
-| Google Cloud 프로젝트 생성 + Gmail API 활성화 | 사용자 | pending | - | console.cloud.google.com |
-| OAuth 2.0 클라이언트 ID 생성 (웹 앱) | 사용자 | pending | GCP 프로젝트 | redirect URI: http://localhost:8000/auth/callback |
-| Anthropic API 키 발급 | 사용자 | pending | - | console.anthropic.com |
+| Google Cloud 프로젝트 생성 + Gmail API 활성화 | 사용자 | done | - | console.cloud.google.com |
+| OAuth 2.0 클라이언트 ID 생성 (웹 앱) | 사용자 | done | GCP 프로젝트 | redirect URI: http://localhost:8000/auth/callback |
+| Anthropic API 키 발급 | 사용자 | done | - | console.anthropic.com |
 
 ## Phase 1: Gmail 연동 + AI 분류 (MVP)
 
