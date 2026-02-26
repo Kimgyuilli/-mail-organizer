@@ -34,11 +34,29 @@ Gmail과 네이버 메일을 통합 관리하고, AI 기반으로 자동 분류�
   ```
 
 ### 에이전트 작업 규칙
-1. **시작**: `PLAN.md` → `PROGRESS.md` 순서로 읽고 컨텍스트 파악
-2. **태스크 선택**: PLAN.md에서 `pending` 상태이고 의존이 해결된 태스크를 선택
-3. **작업 중**: PLAN.md 해당 태스크 상태를 `in-progress`로 변경
-4. **완료 시**: PLAN.md 상태를 `done`으로, PROGRESS.md에 완료 기록 추가
-5. **블로커 발생 시**: PLAN.md 상태를 `blocked`로, PROGRESS.md에 이슈 기록
+1. **시작**: `/sync`로 컨텍스트 파악 (또는 수동으로 PLAN.md → PROGRESS.md 읽기)
+2. **레퍼런스 확인**: 태스크에 관련된 기존 조사 자료가 있는지 `/ref`로 검색
+3. **태스크 선택**: `/next`로 다음 수행 가능한 태스크 확인
+4. **작업 중**: PLAN.md 해당 태스크 상태를 `in-progress`로 변경
+5. **완료 시**: `/done <태스크명>`으로 완료 처리
+6. **블로커 발생 시**: `/blocked <태스크명> <이유>`로 블로커 기록
+7. **조사 완료 시**: 새로 알게 된 기술 정보는 `/save-ref`로 반드시 저장
+8. **전체 워크플로우**: `/implement-task`로 선택→구현→검증→기록까지 한번에 수행
+
+### 사용 가능한 스킬 (`.claude/skills/`)
+
+| 스킬 | 용도 | 예시 |
+|------|------|------|
+| `/sync` | 현재 프로젝트 상황 요약 | `/sync` |
+| `/next` | 다음 수행 가능한 태스크 제안 | `/next` |
+| `/done` | 태스크 완료 처리 + 기록 | `/done OAuth 인증 구현` |
+| `/blocked` | 태스크 블로커 기록 | `/blocked OAuth 인증 API 키 미발급` |
+| `/review` | 코드 리뷰 (보안, 버그, 컨벤션) | `/review` 또는 `/review backend/app/services/gmail_service.py` |
+| `/test` | 테스트 실행 + 결과 요약 | `/test backend` 또는 `/test all` |
+| `/setup-check` | 개발 환경 점검 | `/setup-check` |
+| `/implement-task` | 태스크 풀 워크플로우 | `/implement-task Gmail API 연동` |
+| `/ref` | 레퍼런스 검색/조회 | `/ref gmail oauth`, `/ref --tag api`, `/ref --list` |
+| `/save-ref` | 조사 결과를 레퍼런스로 저장 | `/save-ref api-gmail Gmail API 조사 결과` |
 
 ## 프로젝트 목표
 
@@ -82,7 +100,15 @@ Gmail과 네이버 메일을 통합 관리하고, AI 기반으로 자동 분류�
 │   │   └── lib/            # API 클라이언트, 유틸
 │   ├── package.json
 │   └── .env.local          # 프론트 환경변수 (git 미추적)
+├── references/             # 조사 자료, 의사결정 기록
+│   ├── README.md           # 레퍼런스 형식/규칙
+│   ├── api-*.md            # API 문서 요약
+│   ├── decision-*.md       # 기술 의사결정
+│   ├── guide-*.md          # 구현 가이드
+│   └── research-*.md       # 기술 조사
 ├── CLAUDE.md
+├── PLAN.md                 # 작업 계획
+├── PROGRESS.md             # 진행 기록
 └── .gitignore
 ```
 
