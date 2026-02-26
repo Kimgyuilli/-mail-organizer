@@ -1,29 +1,41 @@
 # 작업 계획
 
+## Phase 0: 사전 준비 (사용자 수동)
+
+| 태스크 | 담당 | 상태 | 의존 | 비고 |
+|--------|------|------|------|------|
+| Google Cloud 프로젝트 생성 + Gmail API 활성화 | 사용자 | pending | - | console.cloud.google.com |
+| OAuth 2.0 클라이언트 ID 생성 (웹 앱) | 사용자 | pending | GCP 프로젝트 | redirect URI: http://localhost:8000/auth/callback |
+| Anthropic API 키 발급 | 사용자 | pending | - | console.anthropic.com |
+
 ## Phase 1: Gmail 연동 + AI 분류 (MVP)
 
 | 태스크 | 담당 | 상태 | 의존 | 비고 |
 |--------|------|------|------|------|
-| 프로젝트 초기 셋업 (backend/frontend 보일러플레이트, .gitignore) | - | pending | - | uv + FastAPI, pnpm + Next.js |
-| Google Cloud OAuth 2.0 인증 플로우 구현 | - | pending | 초기 셋업 | 토큰 발급/갱신 포함 |
-| Gmail API로 메일 목록/본문 가져오기 | - | pending | OAuth 인증 | gmail.readonly 스코프 |
-| Claude API로 메일 내용 기반 카테고리 분류 | - | pending | 메일 가져오기 | classifier 서비스 |
-| 분류 결과를 Gmail 라벨로 자동 적용 | - | pending | 카테고리 분류 | gmail.modify 스코프 |
-| 기본 UI: 메일 목록 + 분류 결과 확인/수정 | - | pending | 메일 가져오기, 카테고리 분류 | Next.js 프론트 |
+| Backend 초기 셋업 (FastAPI + uv) | backend-dev | pending | - | pyproject.toml, main.py, config.py |
+| Frontend 초기 셋업 (Next.js + pnpm) | frontend-dev | pending | - | create-next-app, TypeScript 설정 |
+| DB 모델 정의 (메일, 라벨, 사용자) | backend-dev | pending | Backend 셋업 | SQLAlchemy + SQLite |
+| Google OAuth 2.0 인증 플로우 구현 | backend-dev | pending | Backend 셋업, Phase 0 완료 | 토큰 발급/갱신, `/auth/google` 엔드포인트 |
+| Gmail API 메일 가져오기 서비스 | backend-dev | pending | OAuth 인증, DB 모델 | gmail_service.py, 페이지네이션 |
+| Gmail API 메일 가져오기 라우터 | backend-dev | pending | 메일 가져오기 서비스 | `/api/gmail/messages` 엔드포인트 |
+| Claude API 메일 분류 서비스 | backend-dev | pending | Backend 셋업, Phase 0 (API 키) | classifier.py, 배치 분류 |
+| 분류 결과를 Gmail 라벨로 적용 | backend-dev | pending | 분류 서비스, 메일 가져오기 | gmail.modify 스코프 |
+| 프론트: 메일 목록 페이지 | frontend-dev | pending | Frontend 셋업, 메일 가져오기 라우터 | API 연동, 메일 리스트 UI |
+| 프론트: 분류 결과 확인/수정 UI | frontend-dev | pending | 메일 목록 페이지, 분류 서비스 | 라벨 표시, 수동 수정 |
 
 ## Phase 2: 네이버 메일 연동
 
 | 태스크 | 담당 | 상태 | 의존 | 비고 |
 |--------|------|------|------|------|
-| IMAP으로 네이버 메일 가져오기 | - | pending | Phase 1 완료 | imap.naver.com:993 |
-| 네이버 메일에 동일한 AI 분류 적용 | - | pending | 네이버 메일 가져오기 | classifier 재사용 |
-| 통합 메일 DB 스키마 설계 | - | pending | Phase 1 완료 | Gmail/네이버 공통 모델 |
+| IMAP으로 네이버 메일 가져오기 | backend-dev | pending | Phase 1 완료 | imap.naver.com:993 |
+| 네이버 메일에 동일한 AI 분류 적용 | backend-dev | pending | 네이버 메일 가져오기 | classifier 재사용 |
+| 통합 메일 DB 스키마 설계 | backend-dev | pending | Phase 1 완료 | Gmail/네이버 공통 모델 |
 
 ## Phase 3: 통합 UI + 자동화
 
 | 태스크 | 담당 | 상태 | 의존 | 비고 |
 |--------|------|------|------|------|
-| 통합 인박스 (Gmail + 네이버 타임라인 뷰) | - | pending | Phase 2 완료 | |
-| 라벨/카테고리 사이드바 + 드래그&드롭 | - | pending | 통합 인박스 | |
-| 백그라운드 스케줄러 (주기적 동기화 + 자동 분류) | - | pending | Phase 2 완료 | |
-| 사용자 피드백 기반 분류 개선 | - | pending | 통합 UI | |
+| 통합 인박스 (Gmail + 네이버 타임라인 뷰) | frontend-dev | pending | Phase 2 완료 | |
+| 라벨/카테고리 사이드바 + 드래그&드롭 | frontend-dev | pending | 통합 인박스 | |
+| 백그라운드 스케줄러 (주기적 동기화 + 자동 분류) | backend-dev | pending | Phase 2 완료 | |
+| 사용자 피드백 기반 분류 개선 | backend-dev | pending | 통합 UI | |
