@@ -1,0 +1,147 @@
+# Mail Organizer
+
+Gmail과 네이버 메일을 통합 관리하고, AI 기반으로 자동 분류하는 플랫폼.
+
+## 에이전트 워크플로우
+
+> **새 세션을 시작하면 반드시 `PLAN.md`와 `PROGRESS.md`를 먼저 읽고 현재 상황을 파악한 뒤 작업을 시작한다.**
+
+### PLAN.md — 작업 계획
+- 현재 진행 중인 Phase와 남은 태스크 목록을 관리한다.
+- 각 태스크는 담당자(에이전트), 상태, 의존 관계를 명시한다.
+- 새로운 태스크가 생기면 PLAN.md에 추가하고, 완료/변경 시 즉시 업데이트한다.
+- 형식:
+  ```
+  ## Phase N: 제목
+  | 태스크 | 담당 | 상태 | 의존 | 비고 |
+  |--------|------|------|------|------|
+  | 태스크 설명 | agent-id | pending/in-progress/done/blocked | 선행 태스크 | 메모 |
+  ```
+
+### PROGRESS.md — 진행 기록
+- 각 에이전트가 작업을 시작/완료할 때마다 기록한다.
+- 최신 항목이 위로 오도록 역순으로 작성한다.
+- 다음 에이전트가 읽었을 때 "지금 어디까지 됐고, 무엇을 해야 하는지" 즉시 파악할 수 있어야 한다.
+- 형식:
+  ```
+  ## YYYY-MM-DD HH:MM — agent-id
+  ### 완료한 작업
+  - 작업 내용 (관련 파일 경로 포함)
+  ### 다음 할 일
+  - 다음 에이전트가 이어서 해야 할 작업
+  ### 이슈/참고
+  - 발견된 문제, 결정 사항, 주의점
+  ```
+
+### 에이전트 작업 규칙
+1. **시작**: `PLAN.md` → `PROGRESS.md` 순서로 읽고 컨텍스트 파악
+2. **태스크 선택**: PLAN.md에서 `pending` 상태이고 의존이 해결된 태스크를 선택
+3. **작업 중**: PLAN.md 해당 태스크 상태를 `in-progress`로 변경
+4. **완료 시**: PLAN.md 상태를 `done`으로, PROGRESS.md에 완료 기록 추가
+5. **블로커 발생 시**: PLAN.md 상태를 `blocked`로, PROGRESS.md에 이슈 기록
+
+## 프로젝트 목표
+
+1. Gmail API를 통해 메일을 가져오고, AI(Claude API)로 내용 기반 자동 라벨 분류
+2. 네이버 메일을 IMAP으로 연동하여 동일한 분류 체계 적용
+3. 통합 UI에서 Gmail + 네이버 메일을 한 화면에서 조회, 분류, 정리
+4. 백그라운드 자동화 (주기적 메일 체크 → 자동 분류)
+
+## 기술 스택
+
+- **Backend**: Python (FastAPI)
+- **Frontend**: Next.js (React, App Router)
+- **Database**: SQLite (개발) → PostgreSQL (배포)
+- **AI**: Claude API (메일 분류, 요약)
+- **인증**: Google OAuth 2.0, 네이버 IMAP 인증
+- **패키지 관리**: Backend - uv / Frontend - pnpm
+
+## 프로젝트 구조
+
+```
+/
+├── backend/                # FastAPI 백엔드
+│   ├── app/
+│   │   ├── main.py         # FastAPI 엔트리포인트
+│   │   ├── routers/        # API 라우터
+│   │   │   ├── gmail.py
+│   │   │   ├── naver.py
+│   │   │   └── classify.py
+│   │   ├── services/       # 비즈니스 로직
+│   │   │   ├── gmail_service.py
+│   │   │   ├── naver_service.py
+│   │   │   └── classifier.py
+│   │   ├── models/         # DB 모델 (SQLAlchemy)
+│   │   └── config.py       # 환경 설정
+│   ├── pyproject.toml
+│   └── .env                # 시크릿 (git 미추적)
+├── frontend/               # Next.js 프론트엔드
+│   ├── src/
+│   │   ├── app/            # App Router 페이지
+│   │   ├── components/     # UI 컴포넌트
+│   │   └── lib/            # API 클라이언트, 유틸
+│   ├── package.json
+│   └── .env.local          # 프론트 환경변수 (git 미추적)
+├── CLAUDE.md
+└── .gitignore
+```
+
+## 구현 로드맵
+
+### Phase 1: Gmail 연동 + AI 분류 (MVP)
+- [ ] 프로젝트 초기 셋업 (backend/frontend 보일러플레이트)
+- [ ] Google Cloud OAuth 2.0 인증 플로우
+- [ ] Gmail API로 메일 목록/본문 가져오기
+- [ ] Claude API로 메일 내용 기반 카테고리 분류
+- [ ] 분류 결과를 Gmail 라벨로 자동 적용
+- [ ] 기본 UI: 메일 목록 + 분류 결과 확인/수정
+
+### Phase 2: 네이버 메일 연동
+- [ ] IMAP으로 네이버 메일 가져오기 (imap.naver.com:993)
+- [ ] 네이버 메일에 동일한 AI 분류 적용
+- [ ] 통합 메일 DB 스키마 (Gmail/네이버 공통)
+
+### Phase 3: 통합 UI + 자동화
+- [ ] 통합 인박스 (Gmail + 네이버 타임라인 뷰)
+- [ ] 라벨/카테고리 사이드바, 드래그&드롭 분류
+- [ ] 백그라운드 스케줄러 (주기적 메일 동기화 + 자동 분류)
+- [ ] 사용자 피드백 기반 분류 개선
+
+## 개발 컨벤션
+
+- 커밋 메시지: 한글 허용, Conventional Commits 형식 (`feat:`, `fix:`, `docs:` 등)
+- Backend: Python 3.12+, 타입 힌트 필수, ruff로 린트
+- Frontend: TypeScript strict mode, ESLint + Prettier
+- API 응답: JSON, snake_case 키
+- 환경변수: `.env` 파일 사용, 시크릿은 절대 커밋하지 않음
+
+## 주요 API/서비스 설정 참고
+
+### Gmail API
+- Google Cloud Console → Gmail API 활성화
+- OAuth 2.0 클라이언트 ID 생성 (웹 애플리케이션)
+- 스코프: `gmail.readonly`, `gmail.labels`, `gmail.modify`
+
+### 네이버 메일 IMAP
+- 네이버 메일 설정 → POP3/IMAP 사용 설정
+- IMAP 서버: `imap.naver.com:993` (SSL)
+- 네이버 앱 비밀번호 또는 OAuth (네이버 개발자센터)
+
+### Claude API
+- Anthropic Console에서 API 키 발급
+- 모델: claude-sonnet-4-5-20250929 (비용 효율)
+- 메일 분류 프롬프트는 `backend/app/services/classifier.py`에서 관리
+
+## 명령어
+
+```bash
+# Backend
+cd backend && uv run fastapi dev app/main.py
+
+# Frontend
+cd frontend && pnpm dev
+
+# Lint
+cd backend && uv run ruff check .
+cd frontend && pnpm lint
+```
