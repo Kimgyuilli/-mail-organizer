@@ -146,6 +146,73 @@ async def classify_user_mails(
     return {"classified": len(results), "results": results}
 
 
+class UpdateClassificationRequest(BaseModel):
+    classification_id: int
+    new_category: str
+
+
+@router.put("/update")
+async def update_classification(
+    req: UpdateClassificationRequest,
+    user_id: int = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually update a classification's label (user feedback)."""
+    result = await db.execute(
+        select(Classification).where(
+            Classification.id == req.classification_id
+        )
+    )
+    classification = result.scalar_one_or_none()
+    if classification is None:
+        raise HTTPException(
+            status_code=404, detail="Classification not found"
+        )
+
+    # Verify mail belongs to user
+    mail_result = await db.execute(
+        select(Mail).where(
+            Mail.id == classification.mail_id,
+            Mail.user_id == user_id,
+        )
+    )
+    if mail_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Find or create the new label
+    label_result = await db.execute(
+        select(Label).where(
+            Label.user_id == user_id,
+            Label.name == req.new_category,
+        )
+    )
+    label = label_result.scalar_one_or_none()
+    if label is None:
+        label = Label(
+            user_id=user_id,
+            name=req.new_category,
+            is_default=False,
+        )
+        db.add(label)
+        await db.flush()
+
+    classification.label_id = label.id
+    classification.user_feedback = req.new_category
+    await db.commit()
+
+    return {
+        "classification_id": classification.id,
+        "new_category": req.new_category,
+        "message": "분류가 수정되었습니다.",
+    }
+
+
+@router.get("/categories")
+async def get_categories():
+    """Return the list of available classification categories."""
+    return {"categories": DEFAULT_CATEGORIES}
+
+
 async def _ensure_default_labels(db: AsyncSession, user_id: int) -> None:
     """Create default category labels if they don't exist."""
     for category in DEFAULT_CATEGORIES:

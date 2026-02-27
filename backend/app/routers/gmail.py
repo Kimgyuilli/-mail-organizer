@@ -99,7 +99,7 @@ async def list_messages(
     limit: int = Query(default=20, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    """List synced Gmail messages from DB."""
+    """List synced Gmail messages from DB with classification."""
     query = (
         select(Mail)
         .where(Mail.user_id == user_id, Mail.source == "gmail")
@@ -108,7 +108,7 @@ async def list_messages(
         .limit(limit)
     )
     result = await db.execute(query)
-    mails = result.scalars().all()
+    mails = list(result.scalars().all())
 
     count_result = await db.execute(
         select(func.count(Mail.id)).where(
@@ -116,6 +116,11 @@ async def list_messages(
         )
     )
     total = count_result.scalar()
+
+    # Fetch classifications for these mails
+    classifications = await _get_classifications_for_mails(
+        db, [m.id for m in mails]
+    )
 
     return {
         "total": total,
@@ -129,9 +134,12 @@ async def list_messages(
                 "from_name": m.from_name,
                 "subject": m.subject,
                 "received_at": (
-                    m.received_at.isoformat() if m.received_at else None
+                    m.received_at.isoformat()
+                    if m.received_at
+                    else None
                 ),
                 "is_read": m.is_read,
+                "classification": classifications.get(m.id),
             }
             for m in mails
         ],
@@ -156,6 +164,10 @@ async def get_message(
     if mail is None:
         raise HTTPException(status_code=404, detail="Message not found")
 
+    classifications = await _get_classifications_for_mails(
+        db, [mail.id]
+    )
+
     return {
         "id": mail.id,
         "external_id": mail.external_id,
@@ -167,6 +179,7 @@ async def get_message(
             mail.received_at.isoformat() if mail.received_at else None
         ),
         "is_read": mail.is_read,
+        "classification": classifications.get(mail.id),
     }
 
 
@@ -308,3 +321,31 @@ async def apply_classification_labels(
         })
 
     return {"applied": len(applied), "results": applied}
+
+
+async def _get_classifications_for_mails(
+    db: AsyncSession,
+    mail_ids: list[int],
+) -> dict[int, dict]:
+    """Get latest classification for each mail. Returns {mail_id: {...}}."""
+    if not mail_ids:
+        return {}
+
+    result = await db.execute(
+        select(Classification, Label)
+        .join(Label, Classification.label_id == Label.id)
+        .where(Classification.mail_id.in_(mail_ids))
+        .order_by(Classification.created_at.desc())
+    )
+    rows = result.all()
+
+    classifications: dict[int, dict] = {}
+    for cls, label in rows:
+        if cls.mail_id not in classifications:
+            classifications[cls.mail_id] = {
+                "classification_id": cls.id,
+                "category": label.name,
+                "confidence": cls.confidence,
+                "user_feedback": cls.user_feedback,
+            }
+    return classifications

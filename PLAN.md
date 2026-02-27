@@ -21,7 +21,7 @@
 | Claude API 메일 분류 서비스 | backend-dev | done | Backend 셋업, Phase 0 (API 키) | classifier.py, 배치 분류, `/api/classify/single`, `/api/classify/mails` |
 | 분류 결과를 Gmail 라벨로 적용 | backend-dev | done | 분류 서비스, 메일 가져오기 | `POST /api/gmail/apply-labels`, AI/ prefix |
 | 프론트: 메일 목록 페이지 | frontend-dev | done | Frontend 셋업, 메일 가져오기 라우터 | 로그인, 메일 목록, 상세 보기, 동기화, 페이지네이션 |
-| 프론트: 분류 결과 확인/수정 UI | frontend-dev | pending | 메일 목록 페이지, 분류 서비스 | 라벨 표시, 수동 수정 |
+| 프론트: 분류 결과 확인/수정 UI | frontend-dev | done | 메일 목록 페이지, 분류 서비스 | 카테고리 뱃지, 드롭다운 수정, Gmail 라벨 적용 버튼 |
 
 ## Phase 2: 네이버 메일 연동
 

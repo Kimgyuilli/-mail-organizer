@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
+
+interface ClassificationInfo {
+  classification_id: number;
+  category: string;
+  confidence: number | null;
+  user_feedback: string | null;
+}
 
 interface MailMessage {
   id: number;
@@ -11,6 +18,7 @@ interface MailMessage {
   subject: string | null;
   received_at: string | null;
   is_read: boolean;
+  classification: ClassificationInfo | null;
 }
 
 interface MailListResponse {
@@ -28,6 +36,7 @@ interface MailDetail {
   body_text: string | null;
   received_at: string | null;
   is_read: boolean;
+  classification: ClassificationInfo | null;
 }
 
 interface UserInfo {
@@ -37,6 +46,18 @@ interface UserInfo {
   naver_connected: boolean;
 }
 
+const CATEGORY_COLORS: Record<string, string> = {
+  업무: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  개인: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  금융: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+  프로모션: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+  뉴스레터: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+  알림: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
+  중요: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+};
+
+const DEFAULT_BADGE = "bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300";
+
 export default function Home() {
   const [userId, setUserId] = useState<number | null>(null);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
@@ -45,7 +66,11 @@ export default function Home() {
   const [offset, setOffset] = useState(0);
   const [selectedMail, setSelectedMail] = useState<MailDetail | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [classifying, setClassifying] = useState(false);
+  const [applyingLabels, setApplyingLabels] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [editingMailId, setEditingMailId] = useState<number | null>(null);
   const limit = 20;
 
   // Check for stored user_id
@@ -55,37 +80,6 @@ export default function Home() {
       setUserId(Number(stored));
     }
   }, []);
-
-  // Load user info
-  useEffect(() => {
-    if (!userId) return;
-    apiFetch<UserInfo>(`/auth/me?user_id=${userId}`)
-      .then(setUserInfo)
-      .catch(() => {
-        localStorage.removeItem("user_id");
-        setUserId(null);
-      });
-  }, [userId]);
-
-  // Load messages
-  useEffect(() => {
-    if (!userId) return;
-    setLoading(true);
-    apiFetch<MailListResponse>(
-      `/api/gmail/messages?user_id=${userId}&offset=${offset}&limit=${limit}`
-    )
-      .then((data) => {
-        setMessages(data.messages);
-        setTotal(data.total);
-      })
-      .catch(() => setMessages([]))
-      .finally(() => setLoading(false));
-  }, [userId, offset]);
-
-  const handleLogin = async () => {
-    const data = await apiFetch<{ auth_url: string }>("/auth/login");
-    window.location.href = data.auth_url;
-  };
 
   // Handle OAuth callback
   useEffect(() => {
@@ -98,6 +92,50 @@ export default function Home() {
     }
   }, []);
 
+  // Load user info + categories
+  useEffect(() => {
+    if (!userId) return;
+    apiFetch<UserInfo>(`/auth/me?user_id=${userId}`)
+      .then(setUserInfo)
+      .catch(() => {
+        localStorage.removeItem("user_id");
+        setUserId(null);
+      });
+    apiFetch<{ categories: string[] }>("/api/classify/categories")
+      .then((data) => setCategories(data.categories))
+      .catch(() => {});
+  }, [userId]);
+
+  const loadMessages = useCallback(
+    async (newOffset?: number) => {
+      if (!userId) return;
+      const o = newOffset ?? offset;
+      setLoading(true);
+      try {
+        const data = await apiFetch<MailListResponse>(
+          `/api/gmail/messages?user_id=${userId}&offset=${o}&limit=${limit}`
+        );
+        setMessages(data.messages);
+        setTotal(data.total);
+      } catch {
+        setMessages([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [userId, offset]
+  );
+
+  // Load messages
+  useEffect(() => {
+    loadMessages();
+  }, [loadMessages]);
+
+  const handleLogin = async () => {
+    const data = await apiFetch<{ auth_url: string }>("/auth/login");
+    window.location.href = data.auth_url;
+  };
+
   const handleSync = async () => {
     if (!userId) return;
     setSyncing(true);
@@ -108,16 +146,107 @@ export default function Home() {
       );
       alert(`${result.synced}개의 새 메일을 동기화했습니다.`);
       setOffset(0);
-      // Reload messages
-      const data = await apiFetch<MailListResponse>(
-        `/api/gmail/messages?user_id=${userId}&offset=0&limit=${limit}`
-      );
-      setMessages(data.messages);
-      setTotal(data.total);
+      await loadMessages(0);
     } catch (err) {
       alert(`동기화 실패: ${err}`);
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleClassify = async () => {
+    if (!userId) return;
+    setClassifying(true);
+    try {
+      const result = await apiFetch<{
+        classified: number;
+        results: { mail_id: number; category: string }[];
+      }>(`/api/classify/mails?user_id=${userId}`, { method: "POST" });
+      alert(`${result.classified}개의 메일이 분류되었습니다.`);
+      await loadMessages();
+    } catch (err) {
+      alert(`분류 실패: ${err}`);
+    } finally {
+      setClassifying(false);
+    }
+  };
+
+  const handleApplyLabels = async () => {
+    if (!userId) return;
+    const classifiedMails = messages.filter((m) => m.classification);
+    if (classifiedMails.length === 0) {
+      alert("분류된 메일이 없습니다. 먼저 AI 분류를 실행하세요.");
+      return;
+    }
+    setApplyingLabels(true);
+    try {
+      const result = await apiFetch<{ applied: number }>(
+        `/api/gmail/apply-labels?user_id=${userId}`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            mail_ids: classifiedMails.map((m) => m.id),
+          }),
+        }
+      );
+      alert(`${result.applied}개의 Gmail 라벨이 적용되었습니다.`);
+    } catch (err) {
+      alert(`라벨 적용 실패: ${err}`);
+    } finally {
+      setApplyingLabels(false);
+    }
+  };
+
+  const handleUpdateCategory = async (
+    classificationId: number,
+    newCategory: string,
+    mailId: number
+  ) => {
+    if (!userId) return;
+    try {
+      await apiFetch(`/api/classify/update?user_id=${userId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          classification_id: classificationId,
+          new_category: newCategory,
+        }),
+      });
+      // Update local state
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === mailId
+            ? {
+                ...m,
+                classification: m.classification
+                  ? {
+                      ...m.classification,
+                      category: newCategory,
+                      user_feedback: newCategory,
+                    }
+                  : null,
+              }
+            : m
+        )
+      );
+      if (selectedMail && selectedMail.id === mailId) {
+        setSelectedMail((prev) =>
+          prev
+            ? {
+                ...prev,
+                classification: prev.classification
+                  ? {
+                      ...prev.classification,
+                      category: newCategory,
+                      user_feedback: newCategory,
+                    }
+                  : null,
+              }
+            : null
+        );
+      }
+      setEditingMailId(null);
+    } catch (err) {
+      alert(`수정 실패: ${err}`);
     }
   };
 
@@ -181,6 +310,7 @@ export default function Home() {
 
   // Mail detail view
   if (selectedMail) {
+    const cls = selectedMail.classification;
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-black">
         <header className="border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
@@ -192,10 +322,19 @@ export default function Home() {
           </button>
         </header>
         <main className="mx-auto max-w-3xl px-6 py-8">
-          <h1 className="text-2xl font-bold text-black dark:text-white mb-4">
-            {selectedMail.subject || "(제목 없음)"}
-          </h1>
-          <div className="flex items-center gap-3 text-sm text-zinc-600 dark:text-zinc-400 mb-6">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <h1 className="text-2xl font-bold text-black dark:text-white">
+              {selectedMail.subject || "(제목 없음)"}
+            </h1>
+            {cls && (
+              <CategoryBadge
+                category={cls.category}
+                confidence={cls.confidence}
+                userFeedback={cls.user_feedback}
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-sm text-zinc-600 dark:text-zinc-400 mb-4">
             <span className="font-medium">
               {selectedMail.from_name || selectedMail.from_email}
             </span>
@@ -208,6 +347,39 @@ export default function Home() {
                 : ""}
             </span>
           </div>
+
+          {/* Classification edit in detail */}
+          {cls && (
+            <div className="mb-6 flex items-center gap-3 rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                분류:
+              </span>
+              <CategoryBadge
+                category={cls.category}
+                confidence={cls.confidence}
+                userFeedback={cls.user_feedback}
+              />
+              <span className="text-sm text-zinc-500">→</span>
+              <select
+                className="rounded-md border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                value={cls.category}
+                onChange={(e) =>
+                  handleUpdateCategory(
+                    cls.classification_id,
+                    e.target.value,
+                    selectedMail.id
+                  )
+                }
+              >
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
             <pre className="whitespace-pre-wrap text-sm text-zinc-800 dark:text-zinc-200 font-sans leading-relaxed">
               {selectedMail.body_text || "(본문 없음)"}
@@ -221,6 +393,7 @@ export default function Home() {
   // Mail list view
   const totalPages = Math.ceil(total / limit);
   const currentPage = Math.floor(offset / limit) + 1;
+  const classifiedCount = messages.filter((m) => m.classification).length;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
@@ -230,20 +403,34 @@ export default function Home() {
           <h1 className="text-xl font-bold text-black dark:text-white">
             Mail Organizer
           </h1>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <span className="text-sm text-zinc-600 dark:text-zinc-400">
               {userInfo?.email}
             </span>
             <button
               onClick={handleSync}
               disabled={syncing}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {syncing ? "동기화 중..." : "메일 동기화"}
             </button>
             <button
+              onClick={handleClassify}
+              disabled={classifying}
+              className="rounded-md bg-violet-600 px-3 py-1.5 text-sm text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+            >
+              {classifying ? "분류 중..." : "AI 분류"}
+            </button>
+            <button
+              onClick={handleApplyLabels}
+              disabled={applyingLabels || classifiedCount === 0}
+              className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+            >
+              {applyingLabels ? "적용 중..." : "Gmail 라벨 적용"}
+            </button>
+            <button
               onClick={handleLogout}
-              className="rounded-md border border-zinc-300 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
             >
               로그아웃
             </button>
@@ -267,15 +454,17 @@ export default function Home() {
           </div>
         ) : (
           <>
-            <div className="mb-3 text-sm text-zinc-500">
-              총 {total}개의 메일
+            <div className="mb-3 flex items-center justify-between text-sm text-zinc-500">
+              <span>총 {total}개의 메일</span>
+              <span>
+                분류됨: {classifiedCount}/{messages.length}
+              </span>
             </div>
             <div className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 divide-y divide-zinc-100 dark:divide-zinc-800">
               {messages.map((mail) => (
-                <button
+                <div
                   key={mail.id}
-                  onClick={() => handleSelectMail(mail.id)}
-                  className={`w-full flex items-center gap-4 px-5 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors ${
+                  className={`flex items-center gap-3 px-5 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors ${
                     !mail.is_read
                       ? "font-semibold"
                       : "text-zinc-600 dark:text-zinc-400"
@@ -287,19 +476,72 @@ export default function Home() {
                       !mail.is_read ? "bg-blue-500" : "bg-transparent"
                     }`}
                   />
-                  {/* Sender */}
-                  <span className="w-48 truncate text-sm text-black dark:text-white">
-                    {mail.from_name || mail.from_email || "(알 수 없음)"}
+                  {/* Category badge */}
+                  <span className="w-20 shrink-0">
+                    {mail.classification ? (
+                      editingMailId === mail.id ? (
+                        <select
+                          className="w-full rounded border border-zinc-300 px-1 py-0.5 text-xs dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
+                          value={mail.classification.category}
+                          onChange={(e) => {
+                            handleUpdateCategory(
+                              mail.classification!.classification_id,
+                              e.target.value,
+                              mail.id
+                            );
+                          }}
+                          onBlur={() => setEditingMailId(null)}
+                          autoFocus
+                        >
+                          {categories.map((cat) => (
+                            <option key={cat} value={cat}>
+                              {cat}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingMailId(mail.id);
+                          }}
+                          title="클릭하여 분류 수정"
+                        >
+                          <CategoryBadge
+                            category={mail.classification.category}
+                            confidence={null}
+                            userFeedback={
+                              mail.classification.user_feedback
+                            }
+                            small
+                          />
+                        </button>
+                      )
+                    ) : (
+                      <span className="text-xs text-zinc-400">-</span>
+                    )}
                   </span>
-                  {/* Subject */}
-                  <span className="flex-1 truncate text-sm text-black dark:text-white">
-                    {mail.subject || "(제목 없음)"}
-                  </span>
-                  {/* Date */}
-                  <span className="shrink-0 text-xs text-zinc-500">
-                    {formatDate(mail.received_at)}
-                  </span>
-                </button>
+                  {/* Clickable mail content */}
+                  <button
+                    onClick={() => handleSelectMail(mail.id)}
+                    className="flex flex-1 items-center gap-4 text-left min-w-0"
+                  >
+                    {/* Sender */}
+                    <span className="w-40 truncate text-sm text-black dark:text-white">
+                      {mail.from_name ||
+                        mail.from_email ||
+                        "(알 수 없음)"}
+                    </span>
+                    {/* Subject */}
+                    <span className="flex-1 truncate text-sm text-black dark:text-white">
+                      {mail.subject || "(제목 없음)"}
+                    </span>
+                    {/* Date */}
+                    <span className="shrink-0 text-xs text-zinc-500">
+                      {formatDate(mail.received_at)}
+                    </span>
+                  </button>
+                </div>
               ))}
             </div>
 
@@ -329,5 +571,37 @@ export default function Home() {
         )}
       </main>
     </div>
+  );
+}
+
+function CategoryBadge({
+  category,
+  confidence,
+  userFeedback,
+  small,
+}: {
+  category: string;
+  confidence: number | null;
+  userFeedback: string | null;
+  small?: boolean;
+}) {
+  const colors = CATEGORY_COLORS[category] || DEFAULT_BADGE;
+  const sizeClass = small ? "px-1.5 py-0.5 text-xs" : "px-2.5 py-1 text-xs";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full font-medium ${colors} ${sizeClass}`}
+    >
+      {userFeedback && (
+        <span title="수동 수정됨" className="opacity-60">
+          *
+        </span>
+      )}
+      {category}
+      {confidence !== null && !small && (
+        <span className="opacity-60">
+          {Math.round(confidence * 100)}%
+        </span>
+      )}
+    </span>
   );
 }

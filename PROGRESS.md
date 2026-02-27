@@ -1,5 +1,27 @@
 # 진행 기록
 
+## 2026-02-27 — frontend-dev + backend-dev (분류 결과 확인/수정 UI)
+### 완료한 작업
+- **프론트: 분류 결과 확인/수정 UI** 완료 — **Phase 1 전체 완료!**
+  - `frontend/src/app/page.tsx` — 분류 UI 통합
+    - 메일 목록: 카테고리 컬러 뱃지 표시 (7개 카테고리별 색상)
+    - 인라인 수정: 뱃지 클릭 → 드롭다운으로 카테고리 변경
+    - 상세 보기: 분류 결과 + confidence 표시, 드롭다운 수정
+    - 수동 수정된 항목은 * 표시
+    - 헤더 버튼: "AI 분류" (배치 분류), "Gmail 라벨 적용"
+    - 분류 현황 카운터: "분류됨: N/M"
+  - `backend/app/routers/gmail.py` — messages 엔드포인트에 classification 데이터 포함
+  - `backend/app/routers/classify.py` — 2개 엔드포인트 추가
+    - `PUT /api/classify/update` — 수동 분류 수정 (user_feedback 기록)
+    - `GET /api/classify/categories` — 사용 가능한 카테고리 목록
+- 검증: ruff check 통과, pnpm lint 통과, pnpm build 성공
+### 다음 할 일
+- Phase 2 시작: IMAP으로 네이버 메일 가져오기, 통합 메일 DB 스키마 설계
+### 이슈/참고
+- Phase 1 전체 10개 태스크 완료 (MVP 기능 완성)
+- 분류 수정 시 user_feedback 컬럼에 기록하여 향후 학습 데이터로 활용 가능
+- CategoryBadge 컴포넌트로 분리하여 재사용성 확보
+
 ## 2026-02-27 — backend-dev + frontend-dev (라벨 적용 + 메일 목록 병렬)
 ### 완료한 작업
 - **분류 결과를 Gmail 라벨로 적용** 완료
