@@ -38,5 +38,5 @@
 | 통합 인박스 API (Backend) | backend-dev | done | Phase 2 완료 | `GET /api/inbox/messages` (inbox.py) |
 | 백그라운드 스케줄러 (주기적 동기화 + 자동 분류) | backend-dev | done | Phase 2 완료 | APScheduler + background_sync 서비스 |
 | 통합 인박스 UI (Gmail + 네이버 타임라인 뷰) | frontend-dev | done | 통합 inbox API | 소스 필터 탭 + 네이버 연결 UI + 소스 뱃지 |
-| 라벨/카테고리 사이드바 + 드래그&드롭 | frontend-dev | pending | 통합 인박스 UI | |
-| 사용자 피드백 기반 분류 개선 | backend-dev | pending | 통합 UI | |
+| 라벨/카테고리 사이드바 + 드래그&드롭 | frontend-dev | done | 통합 인박스 UI | 카테고리 필터 + HTML5 DnD |
+| 사용자 피드백 기반 분류 개선 | backend-dev | pending | 통합 UI | Phase 3 마지막 태스크 |

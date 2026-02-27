@@ -1,5 +1,93 @@
 # 진행 기록
 
+## 2026-02-28 — backend-dev + frontend-dev (카테고리 사이드바 + 드래그&드롭)
+### 완료한 작업
+- **라벨/카테고리 사이드바 + 드래그&드롭** 완료
+- **Backend**: `backend/app/routers/inbox.py`
+  - `GET /api/inbox/messages`에 `category` 쿼리 파라미터 추가 (카테고리명 / "unclassified" / null)
+  - `GET /api/inbox/category-counts` 엔드포인트 추가 (카테고리별 카운트 + 미분류 수)
+- **Frontend**: `frontend/src/app/page.tsx`
+  - 레이아웃: flex row (sidebar w-56 + mail list flex-1)
+  - 카테고리 사이드바: 전체/카테고리별/미분류 필터, 카운트 표시, 색상 동그라미
+  - HTML5 Drag and Drop: 메일 드래그 → 카테고리 드롭으로 분류 변경
+  - 미분류 메일 드롭 시 AI 분류 후 사용자 선택 카테고리로 override
+- **리뷰 수정**: SQL 조인 순서 수정 (select_from(Mail)), React state로 DnD 오버 관리, 에러 시 UI 동기화
+- 검증: ruff check 통과, pnpm lint 통과, pnpm build 성공
+### 다음 할 일
+- Phase 3 마지막: 사용자 피드백 기반 분류 개선
+### 이슈/참고
+- 드래그&드롭은 HTML5 API만 사용 (외부 라이브러리 없음)
+- sourceFilter + categoryFilter 조합 가능
+
+## 2026-02-28 — frontend-dev (카테고리 사이드바 + 드래그&드롭)
+### 완료한 작업
+- **라벨/카테고리 사이드바 + 드래그&드롭** 완료
+  - `frontend/src/app/page.tsx` — 사이드바 + HTML5 Drag and Drop 구현
+    - 새 state: `categoryFilter` (null/"unclassified"/카테고리명), `categoryCounts` (카테고리별 카운트)
+    - 새 인터페이스: `CategoryCount`, `CategoryCountsResponse`
+    - `CATEGORY_DOT_COLORS` 추가 (사이드바 색상 동그라미)
+    - `loadCategoryCounts()` — `GET /api/inbox/category-counts` 호출 (sourceFilter 반영)
+    - `handleCategoryFilter()` — 카테고리 선택 시 offset 리셋
+    - `handleDrop()` — 드래그&드롭으로 메일 분류/수정
+    - 레이아웃 변경: `max-w-5xl` → `max-w-6xl`, flex row (사이드바 + 메일 목록)
+    - 사이드바 UI:
+      - 전체 (total), 각 카테고리 (드롭 타겟, 색상 동그라미), 미분류 (unclassified)
+      - 선택된 카테고리: `bg-zinc-100 dark:bg-zinc-800`
+      - 드래그 오버: `ring-2 ring-blue-400`
+    - 메일 아이템: `draggable`, `onDragStart` (mailId + classificationId 전달)
+    - `cursor-grab active:cursor-grabbing` 스타일 추가
+    - `loadMessages` — categoryFilter 쿼리 파라미터 반영
+    - 동기화/분류/수정 후 `loadCategoryCounts()` 자동 호출 추가
+  - 기존 백엔드 API 활용:
+    - `GET /api/inbox/category-counts` — 이미 구현됨 (inbox.py)
+    - `GET /api/inbox/messages?category=...` — 이미 지원됨
+- 디자인: Tailwind CSS, 다크 모드 완벽 지원, 기존 UI 패턴 100% 유지
+- TypeScript strict mode 준수
+### 다음 할 일
+- 검증: `cd frontend && npx pnpm lint && npx pnpm build` 실행 (사용자 확인 필요)
+- Phase 3 마지막 태스크: 사용자 피드백 기반 분류 개선 (backend-dev)
+### 이슈/참고
+- HTML5 Drag and Drop API만 사용, 외부 라이브러리 불필요
+- 드롭 타겟: 카테고리 버튼만 (전체/미분류는 드롭 불가)
+- 미분류 메일 드롭 시: 먼저 분류 API 호출 후 메일 목록 새로고침 (카테고리 변경은 수동)
+- 카운트는 sourceFilter와 연동하여 Gmail/네이버 필터에도 대응
+- 반응형: 모바일 대응은 추후 개선 가능 (현재는 데스크톱 우선)
+
+## 2026-02-28 — backend-dev (inbox API 카테고리 필터 + 카운트 엔드포인트)
+### 완료한 작업
+- **inbox API에 카테고리 필터링 기능 추가**
+  - `backend/app/routers/inbox.py` — `GET /api/inbox/messages` 수정
+    - `category` 쿼리 파라미터 추가 (str | None)
+    - `category="unclassified"` → LEFT JOIN으로 미분류 메일만 필터
+    - `category="카테고리명"` → Classification + Label JOIN으로 특정 카테고리만 필터
+    - `category=None` → 기존 동작 유지 (전체)
+    - 기존 `source` 필터와 조합 가능
+- **카테고리별 카운트 엔드포인트 추가**
+  - `backend/app/routers/inbox.py` — `GET /api/inbox/category-counts` 신규
+    - 쿼리 파라미터: `user_id` (필수), `source` (선택)
+    - 응답 스키마:
+      ```json
+      {
+        "total": 150,
+        "unclassified": 30,
+        "categories": [
+          {"name": "업무", "count": 45, "color": "blue"},
+          {"name": "개인", "count": 20, "color": "green"}
+        ]
+      }
+      ```
+    - 구현: 최신 Classification 기준 (subquery로 mail당 latest classification 선택)
+    - Label.color 포함하여 UI에서 즉시 사용 가능
+- 타입 힌트, snake_case 컨벤션 준수
+### 다음 할 일
+- 사용자가 `cd backend && uv run ruff check .` 실행하여 린트 검증
+- 프론트엔드에서 카테고리 사이드바 구현 시 이 API 활용
+- Phase 3 나머지: 라벨/카테고리 사이드바 + 드래그&드롭 UI
+### 이슈/참고
+- category 필터는 최신 Classification 기준 (메일당 여러 분류가 있을 수 있으므로)
+- unclassified는 LEFT JOIN + WHERE NULL로 구현
+- source 필터와 category 필터는 독립적으로 조합 가능 (예: Gmail + 업무)
+
 ## 2026-02-27 — backend-dev + frontend-dev (Phase 3: 통합 인박스 + 백그라운드 스케줄러)
 ### 완료한 작업
 - **통합 인박스 API** + **통합 인박스 UI** + **백그라운드 스케줄러** — 병렬 구현 완료

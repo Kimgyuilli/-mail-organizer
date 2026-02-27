@@ -52,6 +52,18 @@ interface UserInfo {
   naver_connected: boolean;
 }
 
+interface CategoryCount {
+  name: string;
+  count: number;
+  color: string | null;
+}
+
+interface CategoryCountsResponse {
+  total: number;
+  unclassified: number;
+  categories: CategoryCount[];
+}
+
 const CATEGORY_COLORS: Record<string, string> = {
   업무: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   개인: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
@@ -60,6 +72,16 @@ const CATEGORY_COLORS: Record<string, string> = {
   뉴스레터: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
   알림: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
   중요: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+};
+
+const CATEGORY_DOT_COLORS: Record<string, string> = {
+  업무: "bg-blue-500",
+  개인: "bg-green-500",
+  금융: "bg-yellow-500",
+  프로모션: "bg-orange-500",
+  뉴스레터: "bg-purple-500",
+  알림: "bg-gray-500",
+  중요: "bg-red-500",
 };
 
 const DEFAULT_BADGE = "bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300";
@@ -82,6 +104,8 @@ export default function Home() {
   const [naverEmail, setNaverEmail] = useState("");
   const [naverPassword, setNaverPassword] = useState("");
   const [connectingNaver, setConnectingNaver] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [categoryCounts, setCategoryCounts] = useState<CategoryCountsResponse | null>(null);
   const limit = 20;
 
   // Check for stored user_id
@@ -117,6 +141,24 @@ export default function Home() {
       .catch(() => {});
   }, [userId]);
 
+  // Load category counts
+  const loadCategoryCounts = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const sourceParam = sourceFilter === "all" ? "" : `&source=${sourceFilter}`;
+      const data = await apiFetch<CategoryCountsResponse>(
+        `/api/inbox/category-counts?user_id=${userId}${sourceParam}`
+      );
+      setCategoryCounts(data);
+    } catch {
+      setCategoryCounts(null);
+    }
+  }, [userId, sourceFilter]);
+
+  useEffect(() => {
+    loadCategoryCounts();
+  }, [loadCategoryCounts]);
+
   const loadMessages = useCallback(
     async (newOffset?: number) => {
       if (!userId) return;
@@ -124,8 +166,9 @@ export default function Home() {
       setLoading(true);
       try {
         const sourceParam = sourceFilter === "all" ? "" : `&source=${sourceFilter}`;
+        const categoryParam = categoryFilter ? `&category=${categoryFilter}` : "";
         const data = await apiFetch<MailListResponse>(
-          `/api/inbox/messages?user_id=${userId}&offset=${o}&limit=${limit}${sourceParam}`
+          `/api/inbox/messages?user_id=${userId}&offset=${o}&limit=${limit}${sourceParam}${categoryParam}`
         );
         setMessages(data.messages);
         setTotal(data.total);
@@ -135,7 +178,7 @@ export default function Home() {
         setLoading(false);
       }
     },
-    [userId, offset, sourceFilter]
+    [userId, offset, sourceFilter, categoryFilter]
   );
 
   // Load messages when dependencies change
@@ -180,6 +223,7 @@ export default function Home() {
       alert(`${totalSynced}개의 새 메일을 동기화했습니다.`);
       setOffset(0);
       await loadMessages(0);
+      await loadCategoryCounts();
     } catch (err) {
       alert(`동기화 실패: ${err}`);
     } finally {
@@ -198,6 +242,7 @@ export default function Home() {
       }>(`/api/classify/mails?user_id=${userId}${sourceParam}`, { method: "POST" });
       alert(`${result.classified}개의 메일이 분류되었습니다.`);
       await loadMessages();
+      await loadCategoryCounts();
     } catch (err) {
       alert(`분류 실패: ${err}`);
     } finally {
@@ -279,6 +324,7 @@ export default function Home() {
         );
       }
       setEditingMailId(null);
+      await loadCategoryCounts();
     } catch (err) {
       alert(`수정 실패: ${err}`);
     }
@@ -315,11 +361,63 @@ export default function Home() {
       // Refresh user info
       const updatedInfo = await apiFetch<UserInfo>(`/auth/me?user_id=${userId}`);
       setUserInfo(updatedInfo);
+      await loadCategoryCounts();
     } catch (err) {
       alert(`네이버 연결 실패: ${err}`);
     } finally {
       setConnectingNaver(false);
     }
+  };
+
+  const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
+
+  const handleDrop = async (e: React.DragEvent, targetCategory: string) => {
+    e.preventDefault();
+    setDragOverCategory(null);
+
+    const mailId = Number(e.dataTransfer.getData("mailId"));
+    const classificationId = e.dataTransfer.getData("classificationId");
+
+    if (!mailId) return;
+
+    try {
+      if (classificationId) {
+        // Existing classification - update category
+        await handleUpdateCategory(Number(classificationId), targetCategory, mailId);
+      } else {
+        // Unclassified mail - first classify via AI, then override to target category
+        await apiFetch(`/api/classify/mails?user_id=${userId}&mail_ids=${mailId}`, {
+          method: "POST",
+        });
+        // Reload to get the new classification_id
+        const sourceParam = sourceFilter === "all" ? "" : `&source=${sourceFilter}`;
+        const categoryParam = categoryFilter ? `&category=${categoryFilter}` : "";
+        const data = await apiFetch<MailListResponse>(
+          `/api/inbox/messages?user_id=${userId}&offset=${offset}&limit=${limit}${sourceParam}${categoryParam}`
+        );
+        const updatedMail = data.messages.find((m) => m.id === mailId);
+        if (updatedMail?.classification) {
+          // Override AI result with user's intended category
+          await handleUpdateCategory(
+            updatedMail.classification.classification_id,
+            targetCategory,
+            mailId
+          );
+        }
+        setMessages(data.messages);
+        setTotal(data.total);
+      }
+      await loadCategoryCounts();
+    } catch (err) {
+      alert(`분류 실패: ${err}`);
+      await loadMessages();
+      await loadCategoryCounts();
+    }
+  };
+
+  const handleCategoryFilter = (cat: string | null) => {
+    setCategoryFilter(cat);
+    setOffset(0);
   };
 
   const handleLogout = () => {
@@ -469,7 +567,7 @@ export default function Home() {
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
       {/* Header */}
       <header className="border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-6xl">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-xl font-bold text-black dark:text-white">
               Mail Organizer
@@ -622,8 +720,86 @@ export default function Home() {
         </div>
       )}
 
-      {/* Mail List */}
-      <main className="mx-auto max-w-5xl px-6 py-6">
+      {/* Mail List with Sidebar */}
+      <div className="mx-auto max-w-6xl px-6 py-6 flex gap-6">
+        {/* Category Sidebar */}
+        <aside className="w-56 shrink-0">
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-3">
+            카테고리
+          </h2>
+          <nav className="space-y-1">
+            {/* All */}
+            <button
+              onClick={() => handleCategoryFilter(null)}
+              className={`flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm text-left transition-colors ${
+                categoryFilter === null
+                  ? "bg-zinc-100 dark:bg-zinc-800 font-medium text-black dark:text-white"
+                  : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+              }`}
+            >
+              <span>전체</span>
+              <span className="text-xs text-zinc-400">
+                {categoryCounts?.total || 0}
+              </span>
+            </button>
+
+            {/* Categories - drop targets */}
+            {categoryCounts?.categories.map((cat) => (
+              <button
+                key={cat.name}
+                onClick={() => handleCategoryFilter(cat.name)}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOverCategory(cat.name);
+                }}
+                onDragLeave={() => {
+                  setDragOverCategory(null);
+                }}
+                onDrop={(e) => {
+                  handleDrop(e, cat.name);
+                  setDragOverCategory(null);
+                }}
+                className={`flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm text-left transition-colors ${
+                  dragOverCategory === cat.name
+                    ? "ring-2 ring-blue-400"
+                    : ""
+                } ${
+                  categoryFilter === cat.name
+                    ? "bg-zinc-100 dark:bg-zinc-800 font-medium text-black dark:text-white"
+                    : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      CATEGORY_DOT_COLORS[cat.name] || "bg-zinc-400"
+                    }`}
+                  />
+                  {cat.name}
+                </span>
+                <span className="text-xs text-zinc-400">{cat.count}</span>
+              </button>
+            ))}
+
+            {/* Unclassified */}
+            <button
+              onClick={() => handleCategoryFilter("unclassified")}
+              className={`flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm text-left transition-colors ${
+                categoryFilter === "unclassified"
+                  ? "bg-zinc-100 dark:bg-zinc-800 font-medium text-black dark:text-white"
+                  : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+              }`}
+            >
+              <span>미분류</span>
+              <span className="text-xs text-zinc-400">
+                {categoryCounts?.unclassified || 0}
+              </span>
+            </button>
+          </nav>
+        </aside>
+
+        {/* Mail List */}
+        <main className="flex-1 min-w-0">
         {loading ? (
           <div className="flex justify-center py-20">
             <span className="text-zinc-500">로딩 중...</span>
@@ -648,7 +824,18 @@ export default function Home() {
               {messages.map((mail) => (
                 <div
                   key={mail.id}
-                  className={`flex items-center gap-3 px-5 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors ${
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("mailId", String(mail.id));
+                    e.dataTransfer.setData(
+                      "classificationId",
+                      mail.classification
+                        ? String(mail.classification.classification_id)
+                        : ""
+                    );
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  className={`flex items-center gap-3 px-5 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors cursor-grab active:cursor-grabbing ${
                     !mail.is_read
                       ? "font-semibold"
                       : "text-zinc-600 dark:text-zinc-400"
@@ -757,7 +944,8 @@ export default function Home() {
             )}
           </>
         )}
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
