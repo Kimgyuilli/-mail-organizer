@@ -1,5 +1,31 @@
 # 진행 기록
 
+## 2026-02-27 — backend-dev (IMAP으로 네이버 메일 가져오기)
+### 완료한 작업
+- **IMAP으로 네이버 메일 가져오기** 완료
+  - `backend/app/services/naver_service.py` — 신규: IMAP 접속, 메일 가져오기, MIME 파싱
+    - `_imap_connection` context manager로 연결 누수 방지
+    - `verify_credentials` — IMAP 로그인 테스트
+    - `list_folders` — 폴더 목록 조회
+    - `fetch_messages` — UID 기반 증분 동기화, MIME 파싱, 읽음 상태 추출
+    - `_parse_email`, `_decode_header_value` — 한글 인코딩 처리
+  - `backend/app/routers/naver.py` — 신규: 5개 엔드포인트
+    - `POST /api/naver/connect` — 네이버 계정 연결 (이메일 + 앱 비밀번호)
+    - `GET /api/naver/folders` — IMAP 폴더 목록
+    - `POST /api/naver/sync` — 메일 동기화 (SyncState 활용, 증분)
+    - `GET /api/naver/messages` — DB에서 네이버 메일 목록 조회
+    - `GET /api/naver/messages/{mail_id}` — 단건 상세
+  - `backend/app/config.py` — naver_imap_host, naver_imap_port 설정 추가
+  - `backend/app/main.py` — naver 라우터 등록
+- 검증: ruff check 통과, 5개 엔드포인트 등록 확인
+### 다음 할 일
+- 네이버 메일에 동일한 AI 분류 적용 (IMAP 완료로 진행 가능)
+### 이슈/참고
+- IMAP은 동기 라이브러리 → asyncio.to_thread로 비동기 래핑 (Gmail 패턴과 동일)
+- IMAP 연결은 context manager로 관리하여 예외 시에도 logout 보장
+- SyncState의 last_uid로 증분 동기화 지원
+- 네이버 앱 비밀번호는 현재 평문 저장 (Google OAuth 토큰과 동일 — 전체 암호화는 별도 태스크)
+
 ## 2026-02-27 — backend-dev (통합 메일 DB 스키마 설계)
 ### 완료한 작업
 - **통합 메일 DB 스키마 설계** 완료 — Phase 2 첫 태스크

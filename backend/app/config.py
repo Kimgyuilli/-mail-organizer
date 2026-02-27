@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     # Anthropic
     anthropic_api_key: str = ""
 
+    # Naver IMAP
+    naver_imap_host: str = "imap.naver.com"
+    naver_imap_port: int = 993
+
     # Database
     database_url: str = "sqlite+aiosqlite:///./mail_organizer.db"
 

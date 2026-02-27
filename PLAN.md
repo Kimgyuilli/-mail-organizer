@@ -27,7 +27,7 @@
 
 | 태스크 | 담당 | 상태 | 의존 | 비고 |
 |--------|------|------|------|------|
-| IMAP으로 네이버 메일 가져오기 | backend-dev | pending | Phase 1 완료 | imap.naver.com:993 |
+| IMAP으로 네이버 메일 가져오기 | backend-dev | done | Phase 1 완료 | imap.naver.com:993 |
 | 네이버 메일에 동일한 AI 분류 적용 | backend-dev | pending | 네이버 메일 가져오기 | classifier 재사용 |
 | 통합 메일 DB 스키마 설계 | backend-dev | done | Phase 1 완료 | Gmail/네이버 공통 모델 |
 
