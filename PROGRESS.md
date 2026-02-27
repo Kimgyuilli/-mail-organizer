@@ -1,5 +1,29 @@
 # 진행 기록
 
+## 2026-02-27 — backend-dev (Gmail 메일 가져오기 서비스 + 라우터)
+### 완료한 작업
+- **Gmail API 메일 가져오기 서비스** 완료
+  - `backend/app/services/gmail_service.py` — Gmail API 클라이언트 빌드, 메일 목록/상세 조회
+  - MIME multipart 파싱, base64url 디코딩, HTML→텍스트 변환
+  - asyncio.to_thread로 동기 Google API를 비동기 래핑
+  - 함수: list_message_ids(), get_message_detail(), get_messages_batch()
+- **Gmail API 메일 가져오기 라우터** 완료
+  - `backend/app/routers/gmail.py` — 4개 엔드포인트
+  - `POST /api/gmail/sync` — 단일 페이지 동기화 (중복 필터링)
+  - `POST /api/gmail/sync/full` — 다중 페이지 동기화 (max_pages, per_page)
+  - `GET /api/gmail/messages` — DB에서 메일 목록 조회 (페이지네이션)
+  - `GET /api/gmail/messages/{mail_id}` — 단건 메일 상세 (본문 포함)
+  - `backend/app/main.py` — gmail 라우터 등록
+- 검증: ruff check 통과, 모든 import 확인, 4개 엔드포인트 등록 확인
+### 다음 할 일
+- 분류 결과를 Gmail 라벨로 적용 (분류 서비스 + 메일 가져오기 완료로 진행 가능)
+- 프론트: 메일 목록 페이지 (메일 가져오기 라우터 완료로 진행 가능)
+- 프론트: 분류 결과 확인/수정 UI (메일 목록 + 분류 서비스 완료 후)
+### 이슈/참고
+- Google API 클라이언트(googleapiclient)는 동기 전용 → asyncio.to_thread로 래핑
+- 메일 본문은 text/plain 우선, text/html fallback (HTML 태그 제거)
+- sync 엔드포인트는 이미 DB에 있는 메일은 스킵 (external_id 기준)
+
 ## 2026-02-27 — backend-dev (OAuth + Classifier 병렬 구현)
 ### 완료한 작업
 - **Google OAuth 2.0 인증 플로우 구현** 완료
