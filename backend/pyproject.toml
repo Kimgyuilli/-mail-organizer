@@ -12,6 +12,9 @@ dependencies = [
     "httpx",
     "anthropic",
     "pydantic-settings",
+    "google-auth",
+    "google-auth-oauthlib",
+    "google-api-python-client",
 ]
 
 [tool.ruff]

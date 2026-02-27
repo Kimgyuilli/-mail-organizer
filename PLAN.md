@@ -15,10 +15,10 @@
 | Backend 초기 셋업 (FastAPI + uv) | backend-dev | done | - | pyproject.toml, main.py, config.py |
 | Frontend 초기 셋업 (Next.js + pnpm) | frontend-dev | done | - | create-next-app, TypeScript 설정 |
 | DB 모델 정의 (메일, 라벨, 사용자) | backend-dev | done | Backend 셋업 | SQLAlchemy + SQLite |
-| Google OAuth 2.0 인증 플로우 구현 | backend-dev | pending | Backend 셋업, Phase 0 완료 | 토큰 발급/갱신, `/auth/google` 엔드포인트 |
+| Google OAuth 2.0 인증 플로우 구현 | backend-dev | done | Backend 셋업, Phase 0 완료 | 토큰 발급/갱신, `/auth/login`, `/auth/callback`, `/auth/me` |
 | Gmail API 메일 가져오기 서비스 | backend-dev | pending | OAuth 인증, DB 모델 | gmail_service.py, 페이지네이션 |
 | Gmail API 메일 가져오기 라우터 | backend-dev | pending | 메일 가져오기 서비스 | `/api/gmail/messages` 엔드포인트 |
-| Claude API 메일 분류 서비스 | backend-dev | pending | Backend 셋업, Phase 0 (API 키) | classifier.py, 배치 분류 |
+| Claude API 메일 분류 서비스 | backend-dev | done | Backend 셋업, Phase 0 (API 키) | classifier.py, 배치 분류, `/api/classify/single`, `/api/classify/mails` |
 | 분류 결과를 Gmail 라벨로 적용 | backend-dev | pending | 분류 서비스, 메일 가져오기 | gmail.modify 스코프 |
 | 프론트: 메일 목록 페이지 | frontend-dev | pending | Frontend 셋업, 메일 가져오기 라우터 | API 연동, 메일 리스트 UI |
 | 프론트: 분류 결과 확인/수정 UI | frontend-dev | pending | 메일 목록 페이지, 분류 서비스 | 라벨 표시, 수동 수정 |

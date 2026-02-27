@@ -1,5 +1,29 @@
 # 진행 기록
 
+## 2026-02-27 — backend-dev (OAuth + Classifier 병렬 구현)
+### 완료한 작업
+- **Google OAuth 2.0 인증 플로우 구현** 완료
+  - `backend/app/services/google_auth.py` — OAuth URL 생성, 토큰 교환/갱신, credentials 빌드, userinfo 조회
+  - `backend/app/routers/auth.py` — `GET /auth/login`, `GET /auth/callback`, `GET /auth/me`, 토큰 자동 갱신 헬퍼
+  - 스코프: gmail.readonly, gmail.labels, gmail.modify, userinfo.email, openid
+  - 의존성 추가: google-auth, google-auth-oauthlib, google-api-python-client
+- **Claude API 메일 분류 서비스** 완료
+  - `backend/app/services/classifier.py` — 단건 분류(classify_single), 배치 분류(classify_batch), 7개 기본 카테고리, 본문 500자 truncation
+  - `backend/app/routers/classify.py` — `POST /api/classify/single` (stateless), `POST /api/classify/mails` (DB 저장, 기본 라벨 자동 생성)
+  - 모델: claude-sonnet-4-5-20250929
+- `backend/app/main.py` — auth, classify 라우터 등록
+- 검증: ruff check 통과, import 확인, ASGI 테스트 (health, auth/login URL 생성, docs 페이지) 통과
+### 다음 할 일
+- Gmail API 메일 가져오기 서비스 (OAuth 완료로 진행 가능)
+- Gmail API 메일 가져오기 라우터 (서비스 완료 후)
+- 분류 결과를 Gmail 라벨로 적용 (메일 가져오기 + 분류 서비스 완료로 진행 가능)
+- 프론트: 메일 목록 페이지 (메일 가져오기 라우터 완료 후)
+### 이슈/참고
+- OAuth는 access_type=offline, prompt=consent로 refresh_token 항상 수령
+- 토큰 만료 시 get_current_user_credentials()에서 자동 갱신
+- 분류 서비스는 Anthropic async client 사용 (비동기 I/O)
+- 배치 분류는 한 API 호출로 여러 메일 처리 (비용 최적화)
+
 ## 2026-02-27 — backend-dev + frontend-dev (병렬)
 ### 완료한 작업
 - **DB 모델 정의** 완료
