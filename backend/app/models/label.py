@@ -33,6 +33,7 @@ class Label(Base):
         Integer, ForeignKey("users.id"), nullable=False
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
+    source: Mapped[str | None] = mapped_column(String, nullable=True)
     color: Mapped[str | None] = mapped_column(String, nullable=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(

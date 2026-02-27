@@ -8,6 +8,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Table,
@@ -34,6 +35,7 @@ class Mail(Base):
     __tablename__ = "mails"
     __table_args__ = (
         UniqueConstraint("user_id", "source", "external_id", name="uq_mail_source"),
+        Index("ix_mail_user_source", "user_id", "source"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -45,7 +47,9 @@ class Mail(Base):
     from_email: Mapped[str | None] = mapped_column(String, nullable=True)
     from_name: Mapped[str | None] = mapped_column(String, nullable=True)
     subject: Mapped[str | None] = mapped_column(String, nullable=True)
+    to_email: Mapped[str | None] = mapped_column(String, nullable=True)
     body_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    folder: Mapped[str | None] = mapped_column(String, nullable=True)
     received_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(

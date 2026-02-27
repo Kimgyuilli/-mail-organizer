@@ -1,5 +1,22 @@
 # 진행 기록
 
+## 2026-02-27 — backend-dev (통합 메일 DB 스키마 설계)
+### 완료한 작업
+- **통합 메일 DB 스키마 설계** 완료 — Phase 2 첫 태스크
+  - `backend/app/models/mail.py` — `to_email`, `folder` 필드 추가, `ix_mail_user_source` 복합 인덱스 추가
+  - `backend/app/models/label.py` — `source` 필드 추가 (null=공통 AI 라벨, "gmail"/"naver"=소스별 라벨)
+  - `backend/app/models/sync_state.py` — 새 모델: 소스별 동기화 상태 추적 (last_uid, next_page_token)
+  - `backend/app/models/__init__.py` — SyncState re-export 추가
+- 검증: ruff check 통과, 모델 로드 + 컬럼/인덱스 확인
+### 다음 할 일
+- IMAP으로 네이버 메일 가져오기 (통합 스키마 완료로 진행 가능)
+- 네이버 메일에 동일한 AI 분류 적용 (IMAP 완료 후)
+### 이슈/참고
+- 기존 Gmail 데이터와 100% 호환 (새 필드 모두 nullable)
+- 개발 DB(SQLite)는 lifespan에서 자동 생성이므로 기존 DB 파일 삭제 후 재시작 필요
+- `SyncState`는 IMAP/Gmail 증분 동기화에 활용 예정
+- AI 분류 라벨(source=null)은 Gmail/네이버 공통, 소스별 라벨은 source 필드로 구분
+
 ## 2026-02-27 — frontend-dev + backend-dev (분류 결과 확인/수정 UI)
 ### 완료한 작업
 - **프론트: 분류 결과 확인/수정 UI** 완료 — **Phase 1 전체 완료!**
