@@ -1,5 +1,21 @@
 # 진행 기록
 
+## 2026-02-27 — backend-dev (네이버 메일에 동일한 AI 분류 적용)
+### 완료한 작업
+- **네이버 메일에 동일한 AI 분류 적용** 완료 — **Phase 2 전체 완료!**
+  - `backend/app/routers/classify.py` — `POST /api/classify/mails`에 `source` 쿼리 파라미터 추가
+    - `source=naver` → 네이버 메일만 분류
+    - `source=gmail` → Gmail 메일만 분류
+    - `source` 미지정 → 전체 메일 분류
+  - 기존 classifier.py (Claude API 기반)는 소스 무관하게 동작하므로 수정 불필요
+  - 네이버 메일 목록/상세 API에 이미 classification 데이터 포함 (naver.py)
+- 검증: ruff check 통과
+### 다음 할 일
+- Phase 3 시작: 통합 인박스 UI, 백그라운드 스케줄러
+### 이슈/참고
+- 기존 분류 시스템이 이미 소스 무관 설계 → 최소 변경으로 완료
+- Phase 2 전체 3개 태스크 완료 (통합 스키마 + IMAP + AI 분류)
+
 ## 2026-02-27 — backend-dev (IMAP으로 네이버 메일 가져오기)
 ### 완료한 작업
 - **IMAP으로 네이버 메일 가져오기** 완료

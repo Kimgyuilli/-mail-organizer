@@ -47,12 +47,14 @@ async def classify_single_mail(req: ClassifySingleRequest):
 @router.post("/mails")
 async def classify_user_mails(
     user_id: int = Query(...),
+    source: str | None = Query(default=None),
     mail_ids: list[int] | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     """Classify user's mails and save results to DB.
 
     If mail_ids is provided, classify only those mails.
+    If source is provided ("gmail" or "naver"), filter by source.
     Otherwise, classify all unclassified mails for the user.
     """
     result = await db.execute(select(User).where(User.id == user_id))
@@ -61,6 +63,8 @@ async def classify_user_mails(
         raise HTTPException(status_code=404, detail="User not found")
 
     query = select(Mail).where(Mail.user_id == user_id)
+    if source:
+        query = query.where(Mail.source == source)
     if mail_ids:
         query = query.where(Mail.id.in_(mail_ids))
 
