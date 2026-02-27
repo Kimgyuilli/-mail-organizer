@@ -13,8 +13,8 @@
 | 태스크 | 담당 | 상태 | 의존 | 비고 |
 |--------|------|------|------|------|
 | Backend 초기 셋업 (FastAPI + uv) | backend-dev | done | - | pyproject.toml, main.py, config.py |
-| Frontend 초기 셋업 (Next.js + pnpm) | frontend-dev | pending | - | create-next-app, TypeScript 설정 |
-| DB 모델 정의 (메일, 라벨, 사용자) | backend-dev | pending | Backend 셋업 | SQLAlchemy + SQLite |
+| Frontend 초기 셋업 (Next.js + pnpm) | frontend-dev | done | - | create-next-app, TypeScript 설정 |
+| DB 모델 정의 (메일, 라벨, 사용자) | backend-dev | done | Backend 셋업 | SQLAlchemy + SQLite |
 | Google OAuth 2.0 인증 플로우 구현 | backend-dev | pending | Backend 셋업, Phase 0 완료 | 토큰 발급/갱신, `/auth/google` 엔드포인트 |
 | Gmail API 메일 가져오기 서비스 | backend-dev | pending | OAuth 인증, DB 모델 | gmail_service.py, 페이지네이션 |
 | Gmail API 메일 가져오기 라우터 | backend-dev | pending | 메일 가져오기 서비스 | `/api/gmail/messages` 엔드포인트 |

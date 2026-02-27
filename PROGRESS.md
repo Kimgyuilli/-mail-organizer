@@ -1,5 +1,30 @@
 # 진행 기록
 
+## 2026-02-27 — backend-dev + frontend-dev (병렬)
+### 완료한 작업
+- **DB 모델 정의** 완료
+  - `backend/app/models/base.py` — async engine, session factory, Base, get_db()
+  - `backend/app/models/user.py` — User 모델 (OAuth 토큰, 네이버 인증)
+  - `backend/app/models/mail.py` — Mail 모델, mail_labels 연결 테이블 (UniqueConstraint: user_id+source+external_id)
+  - `backend/app/models/label.py` — Label 모델 (UniqueConstraint: user_id+name), Classification 모델 (confidence, user_feedback)
+  - `backend/app/models/__init__.py` — 전체 모델 re-export
+  - `backend/app/main.py` — lifespan에서 테이블 자동 생성
+  - 검증: ruff check 통과, 서버 시작 + DB 테이블 생성 확인
+- **Frontend 초기 셋업** 완료
+  - Next.js 16.1.6 + TypeScript + Tailwind CSS + App Router
+  - `frontend/src/lib/api.ts` — 백엔드 API 클라이언트 (apiFetch 함수)
+  - `frontend/src/app/page.tsx` — 랜딩 페이지 (백엔드 헬스체크 상태 표시)
+  - `frontend/.env.local` — API URL 설정
+  - 검증: pnpm lint 통과, pnpm build 성공
+### 다음 할 일
+- Google OAuth 2.0 인증 플로우 구현 (Backend 셋업 + Phase 0 완료로 진행 가능)
+- Gmail API 메일 가져오기 서비스 (OAuth 인증 완료 후)
+- Claude API 메일 분류 서비스 (Backend 셋업 완료로 진행 가능)
+### 이슈/참고
+- pnpm은 시스템에 글로벌 설치 안 됨, `npx pnpm`으로 실행
+- Python 3.13.3, Node 22.16.0 사용
+- SQLAlchemy 모델 간 순환 참조는 TYPE_CHECKING으로 해결
+
 ## 2026-02-26 23:35 — backend-dev
 ### 완료한 작업
 - Backend 초기 셋업 (FastAPI + uv) 완료
