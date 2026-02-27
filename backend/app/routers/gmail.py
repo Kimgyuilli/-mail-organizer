@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Mail, get_db
+from app.models import Classification, Label, Mail, get_db
 from app.routers.auth import get_current_user_credentials
 from app.services.gmail_service import (
+    apply_labels,
     get_messages_batch,
+    get_or_create_gmail_label,
     list_message_ids,
 )
 
@@ -232,3 +235,76 @@ async def sync_all_messages(
             break
 
     return {"total_synced": total_synced}
+
+
+class ApplyLabelsRequest(BaseModel):
+    mail_ids: list[int]
+
+
+@router.post("/apply-labels")
+async def apply_classification_labels(
+    req: ApplyLabelsRequest,
+    user_id: int = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Apply AI classification results as Gmail labels.
+
+    For each mail, finds its classification label and applies it
+    as a Gmail label on the original message.
+    """
+    user, credentials = await get_current_user_credentials(
+        user_id, db
+    )
+
+    # Load mails with their classifications
+    result = await db.execute(
+        select(Mail).where(
+            Mail.id.in_(req.mail_ids),
+            Mail.user_id == user.id,
+            Mail.source == "gmail",
+        )
+    )
+    mails = list(result.scalars().all())
+
+    if not mails:
+        raise HTTPException(
+            status_code=404, detail="No matching mails found"
+        )
+
+    applied = []
+    for mail in mails:
+        # Get classification for this mail
+        cls_result = await db.execute(
+            select(Classification)
+            .where(Classification.mail_id == mail.id)
+            .order_by(Classification.created_at.desc())
+        )
+        classification = cls_result.scalar_one_or_none()
+        if classification is None:
+            continue
+
+        # Get label name
+        label_result = await db.execute(
+            select(Label).where(Label.id == classification.label_id)
+        )
+        label = label_result.scalar_one_or_none()
+        if label is None:
+            continue
+
+        # Prefix with "AI/" to avoid conflicts with user labels
+        gmail_label_name = f"AI/{label.name}"
+        gmail_label_id = await get_or_create_gmail_label(
+            credentials, gmail_label_name
+        )
+
+        await apply_labels(
+            credentials, mail.external_id, [gmail_label_id]
+        )
+
+        applied.append({
+            "mail_id": mail.id,
+            "subject": mail.subject,
+            "gmail_label": gmail_label_name,
+        })
+
+    return {"applied": len(applied), "results": applied}

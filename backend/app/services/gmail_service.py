@@ -88,6 +88,102 @@ async def get_messages_batch(
     return results
 
 
+async def list_labels(
+    credentials: Credentials,
+) -> list[dict[str, str]]:
+    """List all Gmail labels for the user."""
+    import asyncio
+
+    service = _build_gmail(credentials)
+
+    def _fetch():
+        return service.users().labels().list(userId="me").execute()
+
+    result = await asyncio.to_thread(_fetch)
+    return [
+        {"id": lb["id"], "name": lb["name"]}
+        for lb in result.get("labels", [])
+    ]
+
+
+async def create_label(
+    credentials: Credentials,
+    name: str,
+) -> dict[str, str]:
+    """Create a new Gmail label. Returns {id, name}."""
+    import asyncio
+
+    service = _build_gmail(credentials)
+
+    def _create():
+        body = {
+            "name": name,
+            "labelListVisibility": "labelShow",
+            "messageListVisibility": "show",
+        }
+        return service.users().labels().create(
+            userId="me", body=body
+        ).execute()
+
+    result = await asyncio.to_thread(_create)
+    return {"id": result["id"], "name": result["name"]}
+
+
+async def apply_labels(
+    credentials: Credentials,
+    message_id: str,
+    add_label_ids: list[str],
+) -> None:
+    """Apply Gmail labels to a single message."""
+    import asyncio
+
+    service = _build_gmail(credentials)
+
+    def _modify():
+        service.users().messages().modify(
+            userId="me",
+            id=message_id,
+            body={"addLabelIds": add_label_ids},
+        ).execute()
+
+    await asyncio.to_thread(_modify)
+
+
+async def batch_apply_labels(
+    credentials: Credentials,
+    message_ids: list[str],
+    add_label_ids: list[str],
+) -> None:
+    """Apply Gmail labels to multiple messages at once."""
+    import asyncio
+
+    service = _build_gmail(credentials)
+
+    def _batch():
+        service.users().messages().batchModify(
+            userId="me",
+            body={
+                "ids": message_ids,
+                "addLabelIds": add_label_ids,
+            },
+        ).execute()
+
+    await asyncio.to_thread(_batch)
+
+
+async def get_or_create_gmail_label(
+    credentials: Credentials,
+    label_name: str,
+) -> str:
+    """Find a Gmail label by name or create it. Returns label ID."""
+    labels = await list_labels(credentials)
+    for lb in labels:
+        if lb["name"] == label_name:
+            return lb["id"]
+    new_label = await create_label(credentials, label_name)
+    return new_label["id"]
+
+
 def _parse_message(raw: dict) -> dict[str, Any]:
     """Parse Gmail API message response into a flat dict."""
     headers = {

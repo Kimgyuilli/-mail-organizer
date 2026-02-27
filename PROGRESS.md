@@ -1,5 +1,29 @@
 # 진행 기록
 
+## 2026-02-27 — backend-dev + frontend-dev (라벨 적용 + 메일 목록 병렬)
+### 완료한 작업
+- **분류 결과를 Gmail 라벨로 적용** 완료
+  - `backend/app/services/gmail_service.py` — list_labels, create_label, apply_labels, batch_apply_labels, get_or_create_gmail_label 추가
+  - `backend/app/routers/gmail.py` — `POST /api/gmail/apply-labels` 엔드포인트
+  - AI 분류 결과를 "AI/카테고리명" 형식으로 Gmail 라벨 생성/적용
+- **프론트: 메일 목록 페이지** 완료
+  - `frontend/src/app/page.tsx` — 전체 재작성
+  - 로그인 화면: Google OAuth 로그인 버튼
+  - 메일 목록: 발신자, 제목, 날짜, 읽음 상태 표시
+  - 메일 상세: 본문 보기
+  - 메일 동기화 버튼
+  - 페이지네이션 (이전/다음)
+  - `frontend/src/app/layout.tsx` — 메타데이터 업데이트
+- **OAuth 콜백 리다이렉트** 개선
+  - `backend/app/routers/auth.py` — 콜백 후 프론트엔드로 RedirectResponse (user_id 전달)
+- 검증: ruff check 통과, pnpm lint 통과, pnpm build 성공, 엔드포인트 등록 확인
+### 다음 할 일
+- 프론트: 분류 결과 확인/수정 UI (Phase 1 마지막 태스크)
+### 이슈/참고
+- Gmail 라벨은 "AI/" 프리픽스로 사용자 기존 라벨과 충돌 방지
+- OAuth 콜백: JSON 반환 → RedirectResponse로 변경하여 브라우저 플로우 지원
+- 프론트에서 user_id는 localStorage에 저장 (간단한 세션 관리)
+
 ## 2026-02-27 — backend-dev (Gmail 메일 가져오기 서비스 + 라우터)
 ### 완료한 작업
 - **Gmail API 메일 가져오기 서비스** 완료

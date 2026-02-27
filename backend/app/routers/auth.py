@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,11 +54,9 @@ async def callback(
     await db.commit()
     await db.refresh(user)
 
-    return {
-        "user_id": user.id,
-        "email": user.email,
-        "message": "로그인 성공",
-    }
+    # Redirect to frontend with user_id
+    frontend_url = f"http://localhost:3000?user_id={user.id}"
+    return RedirectResponse(url=frontend_url)
 
 
 @router.get("/me")
