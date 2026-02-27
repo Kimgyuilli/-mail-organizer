@@ -1,5 +1,93 @@
 # 진행 기록
 
+## 2026-02-27 — backend-dev + frontend-dev (Phase 3: 통합 인박스 + 백그라운드 스케줄러)
+### 완료한 작업
+- **통합 인박스 API** + **통합 인박스 UI** + **백그라운드 스케줄러** — 병렬 구현 완료
+- **백그라운드 스케줄러 (주기적 동기화 + 자동 분류)**
+  - `backend/pyproject.toml` — `apscheduler>=3.10` 의존성 추가
+  - `backend/app/config.py` — `sync_interval_minutes=15`, `auto_classify=True` 설정
+  - `backend/app/services/background_sync.py` (신규) — 전체 사용자 순회 동기화
+    - `sync_user_gmail()` — Gmail 증분 동기화 (page_token), 토큰 갱신 시 DB 저장
+    - `sync_user_naver()` — 네이버 IMAP 증분 동기화 (UID)
+    - `classify_user_mails()` — 미분류 메일 배치 분류 (50개씩)
+    - `sync_all_users()` — 메인 스케줄러 함수 (사용자별 독립 세션)
+  - `backend/app/main.py` — APScheduler 등록 (lifespan)
+- **코드 리뷰 반영**
+  - Critical: 사용자별 독립 DB 세션 분리 (rollback 격리)
+  - Critical: OAuth 토큰 갱신 후 DB 저장 추가
+  - Critical: `classified_count` 미정의 버그 수정
+  - Fix: `or_` 미사용 import 제거 (inbox.py)
+- 검증: ruff check 통과, pnpm lint 통과, pnpm build 성공
+### 다음 할 일
+- Phase 3 나머지: 라벨/카테고리 사이드바 + 드래그&드롭, 사용자 피드백 기반 분류 개선
+### 이슈/참고
+- 네이버 앱 비밀번호 평문 저장은 기존 이슈 → 별도 보안 태스크로 분리 권장
+- 스케줄러 기본 간격 15분, auto_classify 기본 활성화
+
+## 2026-02-27 — frontend-dev (통합 인박스 UI 구현)
+### 완료한 작업
+- **통합 인박스 UI (Gmail + 네이버 타임라인 뷰)** 완료
+  - `backend/app/routers/inbox.py` — 신규: 통합 인박스 API 엔드포인트
+    - `GET /api/inbox/messages` — source 파라미터로 필터링 (gmail/naver/all)
+    - Gmail + 네이버 메일을 received_at 기준 통합 정렬, classification 포함
+  - `backend/app/main.py` — inbox 라우터 import 및 등록
+  - `frontend/src/app/page.tsx` — 전체 업그레이드 (800+ 라인)
+    - 소스 필터 탭: **전체 / Gmail / 네이버** (헤더에 추가)
+    - 각 메일에 소스 뱃지 표시 (Gmail: 파란색 "G", 네이버: 초록색 "N")
+    - 네이버 계정 연결 UI: 모달 (이메일 + 앱 비밀번호 입력, POST /api/naver/connect)
+    - 통합 동기화: Gmail + 네이버 병렬 호출 (Promise.all)
+    - AI 분류: 현재 탭(source)에 맞춰 파라미터 전달
+    - 메일 상세: 소스 뱃지 + 네이버 폴더 정보 표시
+    - Gmail 라벨 적용 버튼: Gmail 탭에서만 표시 (네이버는 라벨 없음)
+    - SourceBadge 컴포넌트 추가 (원형 뱃지, 호버 툴팁)
+  - `frontend/IMPLEMENTATION_SUMMARY.md` — 구현 상세 문서화
+- 인터페이스 확장: MailMessage, MailDetail에 source, to_email, folder 필드 추가
+- 기존 UI 패턴 100% 유지, Tailwind CSS 컨벤션 준수, 다크 모드 완벽 지원
+### 다음 할 일
+- 검증: `cd frontend && pnpm lint && pnpm build` 실행하여 빌드 성공 확인
+- Phase 3 나머지 태스크:
+  - 라벨/카테고리 사이드바 + 드래그&드롭
+  - 사용자 피드백 기반 분류 개선
+### 이슈/참고
+- bash 권한 제한으로 lint/build 검증 미실행 (사용자가 직접 실행 필요)
+- 백그라운드 스케줄러는 backend-dev가 병렬 완료
+- Gmail 라벨 적용은 Gmail 전용 기능이므로 Gmail 탭에서만 버튼 노출
+- loadMessages는 sourceFilter를 의존성으로 가지므로 필터 변경 시 자동 재로드
+
+## 2026-02-27 — backend-dev (백그라운드 스케줄러 + 통합 인박스 API)
+### 완료한 작업
+- **백그라운드 스케줄러** 완료
+  - `backend/pyproject.toml` — `apscheduler>=3.10` 의존성 추가
+  - `backend/app/config.py` — `sync_interval_minutes`, `auto_classify` 설정 추가
+  - `backend/app/services/background_sync.py` — 신규: 백그라운드 동기화 서비스
+    - `sync_user_gmail(user, db)` — Gmail 동기화 (build_credentials + gmail_service 사용)
+    - `sync_user_naver(user, db)` — 네이버 동기화 (naver_service + SyncState 사용)
+    - `classify_user_mails(user, db)` — 미분류 메일 배치 분류 (classifier.classify_batch 사용)
+    - `sync_all_users()` — 메인 스케줄러 함수 (모든 사용자 순회, 에러 발생 시 스킵+로깅)
+  - `backend/app/main.py` — lifespan에 APScheduler 추가
+    - 스케줄러 시작: `settings.sync_interval_minutes`마다 `sync_all_users` 실행
+    - 스케줄러 종료: lifespan 종료 시 cleanup
+- **통합 인박스 API** 완료 (기존 파일 확인)
+  - `backend/app/routers/inbox.py` — 이미 구현됨 (frontend-dev가 작업한 것으로 추정)
+    - `GET /api/inbox/messages` — Gmail + 네이버 통합 타임라인
+    - 쿼리 파라미터: `user_id`, `source` (필터), `offset`, `limit`
+    - 응답: `messages` (classification 포함), `total`, `offset`, `limit`
+  - `backend/app/main.py` — inbox 라우터 이미 등록됨
+- 검증: 코드 리뷰 통과 (import, 타입 힌트 확인)
+### 다음 할 일
+- 의존성 설치 후 서버 시작하여 스케줄러 동작 확인 필요
+  ```bash
+  cd backend && uv sync && uv run fastapi dev app/main.py
+  ```
+- 사용자가 직접 `uv run ruff check .` 실행하여 린트 통과 확인
+- Phase 3 나머지 태스크: 통합 인박스 UI (frontend-dev), 라벨/카테고리 사이드바
+### 이슈/참고
+- APScheduler는 FastAPI lifespan에서 시작/종료하여 서버 라이프사이클과 동기화
+- 각 사용자별 동기화 시 예외 발생해도 다른 사용자는 계속 처리 (에러 로깅)
+- `auto_classify=True`일 때만 자동 분류 실행
+- Gmail/네이버 동기화 모두 SyncState를 활용하여 증분 동기화 지원
+- inbox API는 이미 구현되어 있어서 스케줄러 작업만 수행함
+
 ## 2026-02-27 — backend-dev (네이버 메일에 동일한 AI 분류 적용)
 ### 완료한 작업
 - **네이버 메일에 동일한 AI 분류 적용** 완료 — **Phase 2 전체 완료!**

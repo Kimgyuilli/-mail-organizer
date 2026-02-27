@@ -12,10 +12,13 @@ interface ClassificationInfo {
 
 interface MailMessage {
   id: number;
+  source: "gmail" | "naver";
   external_id: string;
   from_email: string | null;
   from_name: string | null;
   subject: string | null;
+  to_email: string | null;
+  folder: string | null;
   received_at: string | null;
   is_read: boolean;
   classification: ClassificationInfo | null;
@@ -30,10 +33,13 @@ interface MailListResponse {
 
 interface MailDetail {
   id: number;
+  source: "gmail" | "naver";
   from_email: string | null;
   from_name: string | null;
   subject: string | null;
   body_text: string | null;
+  to_email: string | null;
+  folder: string | null;
   received_at: string | null;
   is_read: boolean;
   classification: ClassificationInfo | null;
@@ -71,6 +77,11 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [editingMailId, setEditingMailId] = useState<number | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<"all" | "gmail" | "naver">("all");
+  const [showNaverConnect, setShowNaverConnect] = useState(false);
+  const [naverEmail, setNaverEmail] = useState("");
+  const [naverPassword, setNaverPassword] = useState("");
+  const [connectingNaver, setConnectingNaver] = useState(false);
   const limit = 20;
 
   // Check for stored user_id
@@ -112,8 +123,9 @@ export default function Home() {
       const o = newOffset ?? offset;
       setLoading(true);
       try {
+        const sourceParam = sourceFilter === "all" ? "" : `&source=${sourceFilter}`;
         const data = await apiFetch<MailListResponse>(
-          `/api/gmail/messages?user_id=${userId}&offset=${o}&limit=${limit}`
+          `/api/inbox/messages?user_id=${userId}&offset=${o}&limit=${limit}${sourceParam}`
         );
         setMessages(data.messages);
         setTotal(data.total);
@@ -123,10 +135,10 @@ export default function Home() {
         setLoading(false);
       }
     },
-    [userId, offset]
+    [userId, offset, sourceFilter]
   );
 
-  // Load messages
+  // Load messages when dependencies change
   useEffect(() => {
     loadMessages();
   }, [loadMessages]);
@@ -137,14 +149,35 @@ export default function Home() {
   };
 
   const handleSync = async () => {
-    if (!userId) return;
+    if (!userId || !userInfo) return;
     setSyncing(true);
     try {
-      const result = await apiFetch<{ synced: number }>(
-        `/api/gmail/sync?user_id=${userId}&max_results=50`,
-        { method: "POST" }
-      );
-      alert(`${result.synced}개의 새 메일을 동기화했습니다.`);
+      const promises = [];
+
+      // Sync Gmail if connected
+      if (userInfo.google_connected) {
+        promises.push(
+          apiFetch<{ synced: number }>(
+            `/api/gmail/sync?user_id=${userId}&max_results=50`,
+            { method: "POST" }
+          )
+        );
+      }
+
+      // Sync Naver if connected
+      if (userInfo.naver_connected) {
+        promises.push(
+          apiFetch<{ synced: number }>(
+            `/api/naver/sync?user_id=${userId}&max_results=50`,
+            { method: "POST" }
+          )
+        );
+      }
+
+      const results = await Promise.all(promises);
+      const totalSynced = results.reduce((sum, r) => sum + r.synced, 0);
+
+      alert(`${totalSynced}개의 새 메일을 동기화했습니다.`);
       setOffset(0);
       await loadMessages(0);
     } catch (err) {
@@ -158,10 +191,11 @@ export default function Home() {
     if (!userId) return;
     setClassifying(true);
     try {
+      const sourceParam = sourceFilter === "all" ? "" : `&source=${sourceFilter}`;
       const result = await apiFetch<{
         classified: number;
         results: { mail_id: number; category: string }[];
-      }>(`/api/classify/mails?user_id=${userId}`, { method: "POST" });
+      }>(`/api/classify/mails?user_id=${userId}${sourceParam}`, { method: "POST" });
       alert(`${result.classified}개의 메일이 분류되었습니다.`);
       await loadMessages();
     } catch (err) {
@@ -250,15 +284,41 @@ export default function Home() {
     }
   };
 
-  const handleSelectMail = async (mailId: number) => {
+  const handleSelectMail = async (mail: MailMessage) => {
     if (!userId) return;
     try {
-      const detail = await apiFetch<MailDetail>(
-        `/api/gmail/messages/${mailId}?user_id=${userId}`
-      );
+      const endpoint = mail.source === "gmail"
+        ? `/api/gmail/messages/${mail.id}?user_id=${userId}`
+        : `/api/naver/messages/${mail.id}?user_id=${userId}`;
+      const detail = await apiFetch<MailDetail>(endpoint);
       setSelectedMail(detail);
     } catch {
       alert("메일을 불러올 수 없습니다.");
+    }
+  };
+
+  const handleConnectNaver = async () => {
+    if (!userId || !naverEmail || !naverPassword) return;
+    setConnectingNaver(true);
+    try {
+      await apiFetch(`/api/naver/connect?user_id=${userId}`, {
+        method: "POST",
+        body: JSON.stringify({
+          naver_email: naverEmail,
+          naver_app_password: naverPassword,
+        }),
+      });
+      alert("네이버 메일이 연결되었습니다.");
+      setShowNaverConnect(false);
+      setNaverEmail("");
+      setNaverPassword("");
+      // Refresh user info
+      const updatedInfo = await apiFetch<UserInfo>(`/auth/me?user_id=${userId}`);
+      setUserInfo(updatedInfo);
+    } catch (err) {
+      alert(`네이버 연결 실패: ${err}`);
+    } finally {
+      setConnectingNaver(false);
     }
   };
 
@@ -323,9 +383,19 @@ export default function Home() {
         </header>
         <main className="mx-auto max-w-3xl px-6 py-8">
           <div className="flex items-start justify-between gap-4 mb-4">
-            <h1 className="text-2xl font-bold text-black dark:text-white">
-              {selectedMail.subject || "(제목 없음)"}
-            </h1>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <SourceBadge source={selectedMail.source} />
+                {selectedMail.folder && selectedMail.source === "naver" && (
+                  <span className="text-xs text-zinc-500">
+                    {selectedMail.folder}
+                  </span>
+                )}
+              </div>
+              <h1 className="text-2xl font-bold text-black dark:text-white">
+                {selectedMail.subject || "(제목 없음)"}
+              </h1>
+            </div>
             {cls && (
               <CategoryBadge
                 category={cls.category}
@@ -399,44 +469,158 @@ export default function Home() {
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
       {/* Header */}
       <header className="border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <h1 className="text-xl font-bold text-black dark:text-white">
-            Mail Organizer
-          </h1>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">
-              {userInfo?.email}
-            </span>
+        <div className="mx-auto max-w-5xl">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-xl font-bold text-black dark:text-white">
+              Mail Organizer
+            </h1>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                {userInfo?.email}
+              </span>
+              {userInfo && !userInfo.naver_connected && (
+                <button
+                  onClick={() => setShowNaverConnect(true)}
+                  className="rounded-md border border-green-600 px-3 py-1.5 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-950 transition-colors"
+                >
+                  네이버 메일 연결
+                </button>
+              )}
+              <button
+                onClick={handleSync}
+                disabled={syncing}
+                className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {syncing ? "동기화 중..." : "메일 동기화"}
+              </button>
+              <button
+                onClick={handleClassify}
+                disabled={classifying}
+                className="rounded-md bg-violet-600 px-3 py-1.5 text-sm text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+              >
+                {classifying ? "분류 중..." : "AI 분류"}
+              </button>
+              {sourceFilter === "gmail" && (
+                <button
+                  onClick={handleApplyLabels}
+                  disabled={applyingLabels || classifiedCount === 0}
+                  className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                >
+                  {applyingLabels ? "적용 중..." : "Gmail 라벨 적용"}
+                </button>
+              )}
+              <button
+                onClick={handleLogout}
+                className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+              >
+                로그아웃
+              </button>
+            </div>
+          </div>
+
+          {/* Source Filter Tabs */}
+          <div className="flex gap-1">
             <button
-              onClick={handleSync}
-              disabled={syncing}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              onClick={() => {
+                setSourceFilter("all");
+                setOffset(0);
+              }}
+              className={`px-4 py-1.5 text-sm font-medium rounded transition-colors ${
+                sourceFilter === "all"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
+              }`}
             >
-              {syncing ? "동기화 중..." : "메일 동기화"}
+              전체
             </button>
             <button
-              onClick={handleClassify}
-              disabled={classifying}
-              className="rounded-md bg-violet-600 px-3 py-1.5 text-sm text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+              onClick={() => {
+                setSourceFilter("gmail");
+                setOffset(0);
+              }}
+              className={`px-4 py-1.5 text-sm font-medium rounded transition-colors ${
+                sourceFilter === "gmail"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
+              }`}
             >
-              {classifying ? "분류 중..." : "AI 분류"}
+              Gmail
             </button>
             <button
-              onClick={handleApplyLabels}
-              disabled={applyingLabels || classifiedCount === 0}
-              className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+              onClick={() => {
+                setSourceFilter("naver");
+                setOffset(0);
+              }}
+              className={`px-4 py-1.5 text-sm font-medium rounded transition-colors ${
+                sourceFilter === "naver"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
+              }`}
             >
-              {applyingLabels ? "적용 중..." : "Gmail 라벨 적용"}
-            </button>
-            <button
-              onClick={handleLogout}
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
-            >
-              로그아웃
+              네이버
             </button>
           </div>
         </div>
       </header>
+
+      {/* Naver Connect Modal */}
+      {showNaverConnect && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-zinc-900 rounded-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4 text-black dark:text-white">
+              네이버 메일 연결
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 text-black dark:text-white">
+                  네이버 이메일
+                </label>
+                <input
+                  type="email"
+                  value={naverEmail}
+                  onChange={(e) => setNaverEmail(e.target.value)}
+                  placeholder="example@naver.com"
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-md dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 text-black dark:text-white">
+                  앱 비밀번호
+                </label>
+                <input
+                  type="password"
+                  value={naverPassword}
+                  onChange={(e) => setNaverPassword(e.target.value)}
+                  placeholder="네이버 앱 비밀번호"
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-md dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                />
+                <p className="text-xs text-zinc-500 mt-1">
+                  네이버 메일 설정에서 IMAP 사용 설정 후 앱 비밀번호를 생성하세요.
+                </p>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowNaverConnect(false);
+                    setNaverEmail("");
+                    setNaverPassword("");
+                  }}
+                  className="px-4 py-2 border border-zinc-300 rounded-md text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleConnectNaver}
+                  disabled={connectingNaver || !naverEmail || !naverPassword}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                >
+                  {connectingNaver ? "연결 중..." : "연결"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mail List */}
       <main className="mx-auto max-w-5xl px-6 py-6">
@@ -476,6 +660,10 @@ export default function Home() {
                       !mail.is_read ? "bg-blue-500" : "bg-transparent"
                     }`}
                   />
+                  {/* Source badge */}
+                  <span className="shrink-0">
+                    <SourceBadge source={mail.source} small />
+                  </span>
                   {/* Category badge */}
                   <span className="w-20 shrink-0">
                     {mail.classification ? (
@@ -523,7 +711,7 @@ export default function Home() {
                   </span>
                   {/* Clickable mail content */}
                   <button
-                    onClick={() => handleSelectMail(mail.id)}
+                    onClick={() => handleSelectMail(mail)}
                     className="flex flex-1 items-center gap-4 text-left min-w-0"
                   >
                     {/* Sender */}
@@ -602,6 +790,32 @@ function CategoryBadge({
           {Math.round(confidence * 100)}%
         </span>
       )}
+    </span>
+  );
+}
+
+function SourceBadge({
+  source,
+  small,
+}: {
+  source: "gmail" | "naver";
+  small?: boolean;
+}) {
+  const isGmail = source === "gmail";
+  const bgColor = isGmail
+    ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200"
+    : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200";
+  const sizeClass = small
+    ? "w-5 h-5 text-xs"
+    : "w-6 h-6 text-sm";
+  const label = isGmail ? "G" : "N";
+
+  return (
+    <span
+      className={`inline-flex items-center justify-center rounded-full font-bold ${bgColor} ${sizeClass}`}
+      title={isGmail ? "Gmail" : "네이버"}
+    >
+      {label}
     </span>
   );
 }
