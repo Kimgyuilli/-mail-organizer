@@ -1,378 +1,88 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { apiFetch } from "@/lib/api";
-import type {
-  MailMessage,
-  MailListResponse,
-  MailDetail,
-  UserInfo,
-  CategoryCountsResponse,
-  FeedbackStats,
-} from "@/types/mail";
+import { useState } from "react";
 import { CATEGORY_COLORS, CATEGORY_DOT_COLORS, DEFAULT_BADGE } from "@/constants/categories";
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { SourceBadge } from "@/components/SourceBadge";
 import { formatDate } from "@/utils/date";
+import { useAuth } from "@/hooks/useAuth";
+import { useMessages } from "@/hooks/useMessages";
+import { useCategoryCounts } from "@/hooks/useCategoryCounts";
+import { useFeedbackStats } from "@/hooks/useFeedbackStats";
+import { useMailActions } from "@/hooks/useMailActions";
+import { useNaverConnect } from "@/hooks/useNaverConnect";
+import { useDragAndDrop } from "@/hooks/useDragAndDrop";
+
+const LIMIT = 20;
 
 export default function Home() {
-  const [userId, setUserId] = useState<number | null>(null);
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
-  const [messages, setMessages] = useState<MailMessage[]>([]);
-  const [total, setTotal] = useState(0);
-  const [offset, setOffset] = useState(0);
-  const [selectedMail, setSelectedMail] = useState<MailDetail | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [classifying, setClassifying] = useState(false);
-  const [applyingLabels, setApplyingLabels] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [categories, setCategories] = useState<string[]>([]);
-  const [editingMailId, setEditingMailId] = useState<number | null>(null);
+  const { userId, userInfo, setUserInfo, categories, handleLogin, handleLogout } = useAuth();
   const [sourceFilter, setSourceFilter] = useState<"all" | "gmail" | "naver">("all");
-  const [showNaverConnect, setShowNaverConnect] = useState(false);
-  const [naverEmail, setNaverEmail] = useState("");
-  const [naverPassword, setNaverPassword] = useState("");
-  const [connectingNaver, setConnectingNaver] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-  const [categoryCounts, setCategoryCounts] = useState<CategoryCountsResponse | null>(null);
-  const [feedbackStats, setFeedbackStats] = useState<FeedbackStats | null>(null);
   const [showSenderRules, setShowSenderRules] = useState(false);
-  const limit = 20;
 
-  // Check for stored user_id
-  useEffect(() => {
-    const stored = localStorage.getItem("user_id");
-    if (stored) {
-      setUserId(Number(stored));
-    }
-  }, []);
+  const { messages, setMessages, total, setTotal, offset, setOffset, loading, loadMessages } =
+    useMessages({ userId, sourceFilter, categoryFilter, limit: LIMIT });
 
-  // Handle OAuth callback
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const uid = params.get("user_id");
-    if (uid) {
-      localStorage.setItem("user_id", uid);
-      setUserId(Number(uid));
-      window.history.replaceState({}, "", "/");
-    }
-  }, []);
+  const { categoryCounts, loadCategoryCounts } = useCategoryCounts({ userId, sourceFilter });
+  const { feedbackStats, loadFeedbackStats } = useFeedbackStats({ userId });
 
-  // Load user info + categories
-  useEffect(() => {
-    if (!userId) return;
-    apiFetch<UserInfo>(`/auth/me?user_id=${userId}`)
-      .then(setUserInfo)
-      .catch(() => {
-        localStorage.removeItem("user_id");
-        setUserId(null);
-      });
-    apiFetch<{ categories: string[] }>("/api/classify/categories")
-      .then((data) => setCategories(data.categories))
-      .catch(() => {});
-  }, [userId]);
+  const {
+    syncing,
+    classifying,
+    applyingLabels,
+    selectedMail,
+    setSelectedMail,
+    editingMailId,
+    setEditingMailId,
+    handleSync,
+    handleClassify,
+    handleApplyLabels,
+    handleUpdateCategory,
+    handleSelectMail,
+  } = useMailActions({
+    userId,
+    userInfo,
+    sourceFilter,
+    messages,
+    setMessages,
+    loadMessages,
+    loadCategoryCounts,
+    loadFeedbackStats,
+  });
 
-  // Load category counts
-  const loadCategoryCounts = useCallback(async () => {
-    if (!userId) return;
-    try {
-      const sourceParam = sourceFilter === "all" ? "" : `&source=${sourceFilter}`;
-      const data = await apiFetch<CategoryCountsResponse>(
-        `/api/inbox/category-counts?user_id=${userId}${sourceParam}`
-      );
-      setCategoryCounts(data);
-    } catch {
-      setCategoryCounts(null);
-    }
-  }, [userId, sourceFilter]);
+  const {
+    showNaverConnect,
+    setShowNaverConnect,
+    naverEmail,
+    setNaverEmail,
+    naverPassword,
+    setNaverPassword,
+    connectingNaver,
+    handleConnectNaver,
+    closeNaverConnect,
+  } = useNaverConnect({ userId, setUserInfo, loadCategoryCounts });
 
-  useEffect(() => {
-    loadCategoryCounts();
-  }, [loadCategoryCounts]);
-
-  // Load feedback stats
-  const loadFeedbackStats = useCallback(async () => {
-    if (!userId) return;
-    try {
-      const data = await apiFetch<FeedbackStats>(
-        `/api/classify/feedback-stats?user_id=${userId}`
-      );
-      setFeedbackStats(data);
-    } catch {
-      setFeedbackStats(null);
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    loadFeedbackStats();
-  }, [loadFeedbackStats]);
-
-  const loadMessages = useCallback(
-    async (newOffset?: number) => {
-      if (!userId) return;
-      const o = newOffset ?? offset;
-      setLoading(true);
-      try {
-        const sourceParam = sourceFilter === "all" ? "" : `&source=${sourceFilter}`;
-        const categoryParam = categoryFilter ? `&category=${categoryFilter}` : "";
-        const data = await apiFetch<MailListResponse>(
-          `/api/inbox/messages?user_id=${userId}&offset=${o}&limit=${limit}${sourceParam}${categoryParam}`
-        );
-        setMessages(data.messages);
-        setTotal(data.total);
-      } catch {
-        setMessages([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [userId, offset, sourceFilter, categoryFilter]
-  );
-
-  // Load messages when dependencies change
-  useEffect(() => {
-    loadMessages();
-  }, [loadMessages]);
-
-  const handleLogin = async () => {
-    const data = await apiFetch<{ auth_url: string }>("/auth/login");
-    window.location.href = data.auth_url;
-  };
-
-  const handleSync = async () => {
-    if (!userId || !userInfo) return;
-    setSyncing(true);
-    try {
-      const promises = [];
-
-      // Sync Gmail if connected
-      if (userInfo.google_connected) {
-        promises.push(
-          apiFetch<{ synced: number }>(
-            `/api/gmail/sync?user_id=${userId}&max_results=50`,
-            { method: "POST" }
-          )
-        );
-      }
-
-      // Sync Naver if connected
-      if (userInfo.naver_connected) {
-        promises.push(
-          apiFetch<{ synced: number }>(
-            `/api/naver/sync?user_id=${userId}&max_results=50`,
-            { method: "POST" }
-          )
-        );
-      }
-
-      const results = await Promise.all(promises);
-      const totalSynced = results.reduce((sum, r) => sum + r.synced, 0);
-
-      alert(`${totalSynced}개의 새 메일을 동기화했습니다.`);
-      setOffset(0);
-      await loadMessages(0);
-      await loadCategoryCounts();
-    } catch (err) {
-      alert(`동기화 실패: ${err}`);
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const handleClassify = async () => {
-    if (!userId) return;
-    setClassifying(true);
-    try {
-      const sourceParam = sourceFilter === "all" ? "" : `&source=${sourceFilter}`;
-      const result = await apiFetch<{
-        classified: number;
-        results: { mail_id: number; category: string }[];
-      }>(`/api/classify/mails?user_id=${userId}${sourceParam}`, { method: "POST" });
-      alert(`${result.classified}개의 메일이 분류되었습니다.`);
-      await loadMessages();
-      await loadCategoryCounts();
-    } catch (err) {
-      alert(`분류 실패: ${err}`);
-    } finally {
-      setClassifying(false);
-    }
-  };
-
-  const handleApplyLabels = async () => {
-    if (!userId) return;
-    const classifiedMails = messages.filter((m) => m.classification);
-    if (classifiedMails.length === 0) {
-      alert("분류된 메일이 없습니다. 먼저 AI 분류를 실행하세요.");
-      return;
-    }
-    setApplyingLabels(true);
-    try {
-      const result = await apiFetch<{ applied: number }>(
-        `/api/gmail/apply-labels?user_id=${userId}`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            mail_ids: classifiedMails.map((m) => m.id),
-          }),
-        }
-      );
-      alert(`${result.applied}개의 Gmail 라벨이 적용되었습니다.`);
-    } catch (err) {
-      alert(`라벨 적용 실패: ${err}`);
-    } finally {
-      setApplyingLabels(false);
-    }
-  };
-
-  const handleUpdateCategory = async (
-    classificationId: number,
-    newCategory: string,
-    mailId: number
-  ) => {
-    if (!userId) return;
-    try {
-      await apiFetch(`/api/classify/update?user_id=${userId}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          classification_id: classificationId,
-          new_category: newCategory,
-        }),
-      });
-      // Update local state
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === mailId
-            ? {
-                ...m,
-                classification: m.classification
-                  ? {
-                      ...m.classification,
-                      category: newCategory,
-                      user_feedback: newCategory,
-                    }
-                  : null,
-              }
-            : m
-        )
-      );
-      if (selectedMail && selectedMail.id === mailId) {
-        setSelectedMail((prev) =>
-          prev
-            ? {
-                ...prev,
-                classification: prev.classification
-                  ? {
-                      ...prev.classification,
-                      category: newCategory,
-                      user_feedback: newCategory,
-                    }
-                  : null,
-              }
-            : null
-        );
-      }
-      setEditingMailId(null);
-      await loadCategoryCounts();
-      await loadFeedbackStats();
-    } catch (err) {
-      alert(`수정 실패: ${err}`);
-    }
-  };
-
-  const handleSelectMail = async (mail: MailMessage) => {
-    if (!userId) return;
-    try {
-      const endpoint = mail.source === "gmail"
-        ? `/api/gmail/messages/${mail.id}?user_id=${userId}`
-        : `/api/naver/messages/${mail.id}?user_id=${userId}`;
-      const detail = await apiFetch<MailDetail>(endpoint);
-      setSelectedMail(detail);
-    } catch {
-      alert("메일을 불러올 수 없습니다.");
-    }
-  };
-
-  const handleConnectNaver = async () => {
-    if (!userId || !naverEmail || !naverPassword) return;
-    setConnectingNaver(true);
-    try {
-      await apiFetch(`/api/naver/connect?user_id=${userId}`, {
-        method: "POST",
-        body: JSON.stringify({
-          naver_email: naverEmail,
-          naver_app_password: naverPassword,
-        }),
-      });
-      alert("네이버 메일이 연결되었습니다.");
-      setShowNaverConnect(false);
-      setNaverEmail("");
-      setNaverPassword("");
-      // Refresh user info
-      const updatedInfo = await apiFetch<UserInfo>(`/auth/me?user_id=${userId}`);
-      setUserInfo(updatedInfo);
-      await loadCategoryCounts();
-    } catch (err) {
-      alert(`네이버 연결 실패: ${err}`);
-    } finally {
-      setConnectingNaver(false);
-    }
-  };
-
-  const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
-
-  const handleDrop = async (e: React.DragEvent, targetCategory: string) => {
-    e.preventDefault();
-    setDragOverCategory(null);
-
-    const mailId = Number(e.dataTransfer.getData("mailId"));
-    const classificationId = e.dataTransfer.getData("classificationId");
-
-    if (!mailId) return;
-
-    try {
-      if (classificationId) {
-        // Existing classification - update category
-        await handleUpdateCategory(Number(classificationId), targetCategory, mailId);
-      } else {
-        // Unclassified mail - first classify via AI, then override to target category
-        await apiFetch(`/api/classify/mails?user_id=${userId}&mail_ids=${mailId}`, {
-          method: "POST",
-        });
-        // Reload to get the new classification_id
-        const sourceParam = sourceFilter === "all" ? "" : `&source=${sourceFilter}`;
-        const categoryParam = categoryFilter ? `&category=${categoryFilter}` : "";
-        const data = await apiFetch<MailListResponse>(
-          `/api/inbox/messages?user_id=${userId}&offset=${offset}&limit=${limit}${sourceParam}${categoryParam}`
-        );
-        const updatedMail = data.messages.find((m) => m.id === mailId);
-        if (updatedMail?.classification) {
-          // Override AI result with user's intended category
-          await handleUpdateCategory(
-            updatedMail.classification.classification_id,
-            targetCategory,
-            mailId
-          );
-        }
-        setMessages(data.messages);
-        setTotal(data.total);
-      }
-      await loadCategoryCounts();
-    } catch (err) {
-      alert(`분류 실패: ${err}`);
-      await loadMessages();
-      await loadCategoryCounts();
-    }
-  };
+  const { dragOverCategory, setDragOverCategory, handleDrop } = useDragAndDrop({
+    userId,
+    sourceFilter,
+    categoryFilter,
+    offset,
+    limit: LIMIT,
+    handleUpdateCategory,
+    setMessages,
+    setTotal,
+    loadMessages,
+    loadCategoryCounts,
+  });
 
   const handleCategoryFilter = (cat: string | null) => {
     setCategoryFilter(cat);
     setOffset(0);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("user_id");
-    setUserId(null);
-    setUserInfo(null);
+  const onLogout = () => {
+    handleLogout();
     setMessages([]);
     setSelectedMail(null);
   };
@@ -460,7 +170,7 @@ export default function Home() {
                 confidence={cls.confidence}
                 userFeedback={cls.user_feedback}
               />
-              <span className="text-sm text-zinc-500">→</span>
+              <span className="text-sm text-zinc-500">&rarr;</span>
               <select
                 className="rounded-md border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
                 value={cls.category}
@@ -492,8 +202,8 @@ export default function Home() {
   }
 
   // Mail list view
-  const totalPages = Math.ceil(total / limit);
-  const currentPage = Math.floor(offset / limit) + 1;
+  const totalPages = Math.ceil(total / LIMIT);
+  const currentPage = Math.floor(offset / LIMIT) + 1;
   const classifiedCount = messages.filter((m) => m.classification).length;
 
   return (
@@ -541,7 +251,7 @@ export default function Home() {
                 </button>
               )}
               <button
-                onClick={handleLogout}
+                onClick={onLogout}
                 className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
               >
                 로그아웃
@@ -551,45 +261,22 @@ export default function Home() {
 
           {/* Source Filter Tabs */}
           <div className="flex gap-1">
-            <button
-              onClick={() => {
-                setSourceFilter("all");
-                setOffset(0);
-              }}
-              className={`px-4 py-1.5 text-sm font-medium rounded transition-colors ${
-                sourceFilter === "all"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
-              }`}
-            >
-              전체
-            </button>
-            <button
-              onClick={() => {
-                setSourceFilter("gmail");
-                setOffset(0);
-              }}
-              className={`px-4 py-1.5 text-sm font-medium rounded transition-colors ${
-                sourceFilter === "gmail"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
-              }`}
-            >
-              Gmail
-            </button>
-            <button
-              onClick={() => {
-                setSourceFilter("naver");
-                setOffset(0);
-              }}
-              className={`px-4 py-1.5 text-sm font-medium rounded transition-colors ${
-                sourceFilter === "naver"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
-              }`}
-            >
-              네이버
-            </button>
+            {(["all", "gmail", "naver"] as const).map((src) => (
+              <button
+                key={src}
+                onClick={() => {
+                  setSourceFilter(src);
+                  setOffset(0);
+                }}
+                className={`px-4 py-1.5 text-sm font-medium rounded transition-colors ${
+                  sourceFilter === src
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
+                }`}
+              >
+                {src === "all" ? "전체" : src === "gmail" ? "Gmail" : "네이버"}
+              </button>
+            ))}
           </div>
         </div>
       </header>
@@ -631,11 +318,7 @@ export default function Home() {
               </div>
               <div className="flex gap-3 justify-end">
                 <button
-                  onClick={() => {
-                    setShowNaverConnect(false);
-                    setNaverEmail("");
-                    setNaverPassword("");
-                  }}
+                  onClick={closeNaverConnect}
                   className="px-4 py-2 border border-zinc-300 rounded-md text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
                 >
                   취소
@@ -685,17 +368,13 @@ export default function Home() {
                   e.preventDefault();
                   setDragOverCategory(cat.name);
                 }}
-                onDragLeave={() => {
-                  setDragOverCategory(null);
-                }}
+                onDragLeave={() => setDragOverCategory(null)}
                 onDrop={(e) => {
                   handleDrop(e, cat.name);
                   setDragOverCategory(null);
                 }}
                 className={`flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm text-left transition-colors ${
-                  dragOverCategory === cat.name
-                    ? "ring-2 ring-blue-400"
-                    : ""
+                  dragOverCategory === cat.name ? "ring-2 ring-blue-400" : ""
                 } ${
                   categoryFilter === cat.name
                     ? "bg-zinc-100 dark:bg-zinc-800 font-medium text-black dark:text-white"
@@ -761,7 +440,7 @@ export default function Home() {
                     >
                       <span>발신자 규칙 상세</span>
                       <span className="text-zinc-400">
-                        {showSenderRules ? "▲" : "▼"}
+                        {showSenderRules ? "\u25B2" : "\u25BC"}
                       </span>
                     </button>
 
@@ -776,7 +455,7 @@ export default function Home() {
                               {rule.from_email}
                             </div>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              <span>→</span>
+                              <span>&rarr;</span>
                               <span
                                 className={`inline-block px-1.5 py-0.5 rounded-full text-xs ${
                                   CATEGORY_COLORS[rule.category] || DEFAULT_BADGE
@@ -932,7 +611,7 @@ export default function Home() {
             {totalPages > 1 && (
               <div className="mt-4 flex items-center justify-center gap-3">
                 <button
-                  onClick={() => setOffset(Math.max(0, offset - limit))}
+                  onClick={() => setOffset(Math.max(0, offset - LIMIT))}
                   disabled={offset === 0}
                   className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-30 dark:border-zinc-700"
                 >
@@ -942,7 +621,7 @@ export default function Home() {
                   {currentPage} / {totalPages}
                 </span>
                 <button
-                  onClick={() => setOffset(offset + limit)}
+                  onClick={() => setOffset(offset + LIMIT)}
                   disabled={currentPage >= totalPages}
                   className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-30 dark:border-zinc-700"
                 >

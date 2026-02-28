@@ -1,5 +1,31 @@
 # 진행 기록
 
+## 2026-03-01 — backend-dev + frontend-dev (Phase 4-4/4-8: 병렬 리팩토링)
+### 완료한 작업
+- **Backend 4-4: background_sync 중복 제거** — `backend/app/services/background_sync.py`
+  - `_get_sync_state(db, user_id, source)` — SyncState 조회 공통화
+  - `_update_sync_state(db, user_id, source, sync_state, ...)` — SyncState 업데이트/생성 공통화
+  - `_save_mails(db, user_id, source, messages)` — Mail 객체 생성+DB 추가 공통화
+  - `filter_new_external_ids` (helpers.py) import하여 중복 필터링 통일
+  - 공개 인터페이스 변경 없음 (sync_user_gmail, sync_user_naver, classify_user_mails, sync_all_users)
+  - 411줄 → 298줄 (27% 감소)
+- **Frontend 4-8: 커스텀 훅 추출** — `frontend/src/hooks/` 7개 신규
+  - `useAuth.ts` — userId, userInfo, login/logout, OAuth callback (lazy initializer 사용)
+  - `useMessages.ts` — messages, pagination, loadMessages
+  - `useCategoryCounts.ts` — categoryCounts, loadCategoryCounts
+  - `useFeedbackStats.ts` — feedbackStats, loadFeedbackStats
+  - `useMailActions.ts` — sync, classify, applyLabels, updateCategory, selectMail
+  - `useNaverConnect.ts` — 네이버 연결 모달 상태/핸들러
+  - `useDragAndDrop.ts` — DnD 상태/핸들러
+  - `page.tsx`: 959줄 → 536줄 (44% 감소)
+- 검증: `ruff check .` 통과, `pnpm lint` 통과, `pnpm build` 성공
+### 다음 할 일
+- Backend: 4-5 (라우터 경량화) — 4-1/4-2/4-3 완료로 진행 가능
+- Frontend: 4-9 (컴포넌트 분리) — 4-8 완료로 진행 가능
+### 이슈/참고
+- ESLint `react-hooks/set-state-in-effect` 규칙 대응: useAuth는 lazy state initializer, useCategoryCounts/useFeedbackStats는 useEffect 내 직접 fetch + 별도 loadCallback 패턴 사용
+- `_save_mails`는 동기 함수 — `db.add()`는 SQLAlchemy에서 동기 연산이므로 문제 없음
+
 ## 2026-02-28 — backend-dev + frontend-dev (Phase 4-1/4-2/4-3/4-7: 병렬 리팩토링)
 ### 완료한 작업
 - **Backend 4-3: 커스텀 예외** — `backend/app/exceptions.py` 신규

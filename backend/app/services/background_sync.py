@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,9 +14,85 @@ from app.services.classifier import classify_batch
 from app.services.feedback import get_feedback_examples, get_sender_rules
 from app.services.gmail_service import get_messages_batch, list_message_ids
 from app.services.google_auth import build_credentials
+from app.services.helpers import filter_new_external_ids
 from app.services.naver_service import fetch_messages
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Private helpers — shared sync logic
+# ---------------------------------------------------------------------------
+
+
+async def _get_sync_state(
+    db: AsyncSession, user_id: int, source: str
+) -> SyncState | None:
+    """SyncState 조회."""
+    result = await db.execute(
+        select(SyncState).where(
+            SyncState.user_id == user_id,
+            SyncState.source == source,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def _update_sync_state(
+    db: AsyncSession,
+    user_id: int,
+    source: str,
+    sync_state: SyncState | None,
+    *,
+    next_page_token: str | None = None,
+    last_uid: str | None = None,
+) -> None:
+    """SyncState 업데이트 또는 생성."""
+    now = datetime.now(tz=UTC)
+    if sync_state:
+        if next_page_token is not None:
+            sync_state.next_page_token = next_page_token
+        if last_uid is not None:
+            sync_state.last_uid = last_uid
+        sync_state.last_synced_at = now
+    else:
+        sync_state = SyncState(
+            user_id=user_id,
+            source=source,
+            next_page_token=next_page_token,
+            last_uid=last_uid,
+            last_synced_at=now,
+        )
+        db.add(sync_state)
+
+
+def _save_mails(
+    db: AsyncSession,
+    user_id: int,
+    source: str,
+    messages: list[dict[str, Any]],
+) -> None:
+    """Mail 객체 생성 + DB 추가."""
+    for msg in messages:
+        mail = Mail(
+            user_id=user_id,
+            source=source,
+            external_id=msg["external_id"],
+            from_email=msg["from_email"],
+            from_name=msg["from_name"],
+            to_email=msg.get("to_email"),
+            subject=msg["subject"],
+            body_text=msg["body_text"],
+            folder=msg.get("folder"),
+            received_at=msg["received_at"],
+            is_read=msg["is_read"],
+        )
+        db.add(mail)
+
+
+# ---------------------------------------------------------------------------
+# Public sync functions
+# ---------------------------------------------------------------------------
 
 
 async def sync_user_gmail(user: User, db: AsyncSession) -> int:
@@ -34,21 +111,11 @@ async def sync_user_gmail(user: User, db: AsyncSession) -> int:
             user.google_oauth_token, user.google_refresh_token
         )
 
-        # SyncState에서 page_token 가져오기
-        sync_result = await db.execute(
-            select(SyncState).where(
-                SyncState.user_id == user.id,
-                SyncState.source == "gmail",
-            )
-        )
-        sync_state = sync_result.scalar_one_or_none()
+        sync_state = await _get_sync_state(db, user.id, "gmail")
         page_token = sync_state.next_page_token if sync_state else None
 
-        # Gmail API에서 메일 ID 목록 가져오기
         result = await list_message_ids(
-            credentials,
-            max_results=50,
-            page_token=page_token,
+            credentials, max_results=50, page_token=page_token
         )
         gmail_ids = result["message_ids"]
 
@@ -56,68 +123,28 @@ async def sync_user_gmail(user: User, db: AsyncSession) -> int:
             logger.debug(f"User {user.id}: Gmail 새 메일 없음")
             return 0
 
-        # 이미 동기화된 메일 필터링
-        existing = await db.execute(
-            select(Mail.external_id).where(
-                Mail.user_id == user.id,
-                Mail.source == "gmail",
-                Mail.external_id.in_(gmail_ids),
-            )
-        )
-        existing_ids = set(existing.scalars().all())
-        new_ids = [gid for gid in gmail_ids if gid not in existing_ids]
+        new_ids = await filter_new_external_ids(db, user.id, "gmail", gmail_ids)
 
         if not new_ids:
-            # page_token 업데이트
-            if sync_state:
-                sync_state.next_page_token = result["next_page_token"]
-                sync_state.last_synced_at = datetime.now(tz=UTC)
-            else:
-                sync_state = SyncState(
-                    user_id=user.id,
-                    source="gmail",
-                    next_page_token=result["next_page_token"],
-                    last_synced_at=datetime.now(tz=UTC),
-                )
-                db.add(sync_state)
+            await _update_sync_state(
+                db, user.id, "gmail", sync_state,
+                next_page_token=result["next_page_token"],
+            )
             await db.commit()
             logger.debug(f"User {user.id}: Gmail 새 메일 없음 (중복 필터링)")
             return 0
 
-        # 새 메일 상세 정보 가져오기
         details = await get_messages_batch(credentials, new_ids)
 
         # OAuth 토큰이 갱신되었으면 DB에 저장
         if credentials.token != user.google_oauth_token:
             user.google_oauth_token = credentials.token
 
-        # DB에 저장
-        for detail in details:
-            mail = Mail(
-                user_id=user.id,
-                source="gmail",
-                external_id=detail["external_id"],
-                from_email=detail["from_email"],
-                from_name=detail["from_name"],
-                subject=detail["subject"],
-                body_text=detail["body_text"],
-                received_at=detail["received_at"],
-                is_read=detail["is_read"],
-            )
-            db.add(mail)
-
-        # SyncState 업데이트
-        if sync_state:
-            sync_state.next_page_token = result["next_page_token"]
-            sync_state.last_synced_at = datetime.now(tz=UTC)
-        else:
-            sync_state = SyncState(
-                user_id=user.id,
-                source="gmail",
-                next_page_token=result["next_page_token"],
-                last_synced_at=datetime.now(tz=UTC),
-            )
-            db.add(sync_state)
+        _save_mails(db, user.id, "gmail", details)
+        await _update_sync_state(
+            db, user.id, "gmail", sync_state,
+            next_page_token=result["next_page_token"],
+        )
 
         await db.commit()
         logger.info(f"User {user.id}: Gmail {len(details)}개 메일 동기화 완료")
@@ -143,17 +170,9 @@ async def sync_user_naver(user: User, db: AsyncSession) -> int:
         return 0
 
     try:
-        # SyncState에서 last_uid 가져오기
-        sync_result = await db.execute(
-            select(SyncState).where(
-                SyncState.user_id == user.id,
-                SyncState.source == "naver",
-            )
-        )
-        sync_state = sync_result.scalar_one_or_none()
+        sync_state = await _get_sync_state(db, user.id, "naver")
         since_uid = sync_state.last_uid if sync_state else None
 
-        # IMAP으로 메일 가져오기
         result = await fetch_messages(
             settings.naver_imap_host,
             settings.naver_imap_port,
@@ -171,70 +190,26 @@ async def sync_user_naver(user: User, db: AsyncSession) -> int:
             logger.debug(f"User {user.id}: 네이버 새 메일 없음")
             return 0
 
-        # 중복 필터링
         external_ids = [m["external_id"] for m in messages]
-        existing = await db.execute(
-            select(Mail.external_id).where(
-                Mail.user_id == user.id,
-                Mail.source == "naver",
-                Mail.external_id.in_(external_ids),
-            )
-        )
-        existing_ids = set(existing.scalars().all())
-        new_messages = [
-            m for m in messages if m["external_id"] not in existing_ids
-        ]
+        new_ids = await filter_new_external_ids(db, user.id, "naver", external_ids)
+        new_messages = [m for m in messages if m["external_id"] in set(new_ids)]
 
         if not new_messages:
-            # SyncState 업데이트
             if last_uid:
-                if sync_state:
-                    sync_state.last_uid = last_uid
-                    sync_state.last_synced_at = datetime.now(tz=UTC)
-                else:
-                    sync_state = SyncState(
-                        user_id=user.id,
-                        source="naver",
-                        last_uid=last_uid,
-                        last_synced_at=datetime.now(tz=UTC),
-                    )
-                    db.add(sync_state)
+                await _update_sync_state(
+                    db, user.id, "naver", sync_state, last_uid=last_uid
+                )
             await db.commit()
             logger.debug(
                 f"User {user.id}: 네이버 새 메일 없음 (중복 필터링)"
             )
             return 0
 
-        # DB에 저장
-        for msg in new_messages:
-            mail = Mail(
-                user_id=user.id,
-                source="naver",
-                external_id=msg["external_id"],
-                from_email=msg["from_email"],
-                from_name=msg["from_name"],
-                to_email=msg["to_email"],
-                subject=msg["subject"],
-                body_text=msg["body_text"],
-                folder=msg["folder"],
-                received_at=msg["received_at"],
-                is_read=msg["is_read"],
-            )
-            db.add(mail)
-
-        # SyncState 업데이트
+        _save_mails(db, user.id, "naver", new_messages)
         if last_uid:
-            if sync_state:
-                sync_state.last_uid = last_uid
-                sync_state.last_synced_at = datetime.now(tz=UTC)
-            else:
-                sync_state = SyncState(
-                    user_id=user.id,
-                    source="naver",
-                    last_uid=last_uid,
-                    last_synced_at=datetime.now(tz=UTC),
-                )
-                db.add(sync_state)
+            await _update_sync_state(
+                db, user.id, "naver", sync_state, last_uid=last_uid
+            )
 
         await db.commit()
         logger.info(
