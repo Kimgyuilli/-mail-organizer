@@ -58,6 +58,7 @@ class Classification(Base):
     )
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     user_feedback: Mapped[str | None] = mapped_column(String, nullable=True)
+    original_category: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(tz=UTC)
     )

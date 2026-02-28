@@ -10,6 +10,7 @@ from app.config import settings
 from app.models import Classification, Label, Mail, SyncState, User
 from app.models.base import AsyncSessionLocal
 from app.services.classifier import classify_batch
+from app.services.feedback import get_feedback_examples, get_sender_rules
 from app.services.gmail_service import get_messages_batch, list_message_ids
 from app.services.google_auth import build_credentials
 from app.services.naver_service import fetch_messages
@@ -271,6 +272,10 @@ async def classify_user_mails(user: User, db: AsyncSession) -> int:
             logger.debug(f"User {user.id}: 미분류 메일 없음")
             return 0
 
+        # 피드백 데이터 조회
+        feedback_examples = await get_feedback_examples(db, user.id, limit=20)
+        sender_rules = await get_sender_rules(db, user.id, min_count=2)
+
         # 분류 입력 데이터 준비
         emails = [
             {
@@ -282,8 +287,12 @@ async def classify_user_mails(user: User, db: AsyncSession) -> int:
             for mail in unclassified_mails
         ]
 
-        # 배치 분류
-        results = await classify_batch(emails)
+        # 배치 분류 (피드백 활용)
+        results = await classify_batch(
+            emails,
+            feedback_examples=feedback_examples,
+            sender_rules=sender_rules,
+        )
 
         # 기본 라벨 가져오기 또는 생성
         label_map: dict[str, int] = {}

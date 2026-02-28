@@ -1,5 +1,65 @@
 # 진행 기록
 
+## 2026-02-28 — backend-dev (사용자 피드백 기반 분류 개선 - Backend) — Phase 3 완료!
+### 완료한 작업
+- **사용자 피드백 기반 분류 개선** 완료 — 프로젝트 전체 로드맵 완료!
+- **Backend 구현**:
+  - `backend/app/services/feedback.py` (신규) — 피드백 분석 서비스
+    - `get_feedback_examples()` — 사용자 수정 기록을 few-shot 예시로 추출
+    - `get_sender_rules()` — 발신자별 자동 분류 규칙 (2회 이상 동일 수정 시)
+    - `get_feedback_stats()` — 피드백 통계 (총 수, 발신자 규칙, 최근 기록)
+  - `backend/app/services/classifier.py` — 피드백 반영 분류 개선
+    - `_build_feedback_section()` — few-shot 예시를 시스템 프롬프트에 추가
+    - `classify_single()` / `classify_batch()` — 발신자 규칙 우선 적용, few-shot 프롬프트
+    - 발신자 규칙 매칭 시 AI 호출 없이 즉시 분류 (비용 절감)
+  - `backend/app/routers/classify.py` — 피드백 활용 + 통계 API
+    - `POST /api/classify/mails` — 분류 전 피드백 데이터 조회하여 classifier에 전달
+    - `GET /api/classify/feedback-stats` — 피드백 통계 엔드포인트 신규
+  - `backend/app/services/background_sync.py` — 백그라운드 자동 분류에도 피드백 활용
+- **코드 리뷰 반영**:
+  - Critical: `Classification.original_category` 필드 추가 (원래 AI 분류 보존)
+  - Critical: `PUT /api/classify/update`에서 수정 전 원래 카테고리 저장
+  - Performance: `get_feedback_stats()` N+1 쿼리 제거 (`_get_sender_rules_with_counts` 헬퍼)
+  - Performance: `classify_user_mails` 라우터에서 라벨 캐시(`label_cache`) 도입
+- 검증: ruff check 통과, pnpm lint 통과, pnpm build 성공
+### 다음 할 일
+- 전체 로드맵 완료! 추가 개선은 필요에 따라 진행
+### 이슈/참고
+- 기존 DB의 Classification 레코드에는 `original_category`가 NULL — 이후 수정부터 기록됨
+- 발신자 규칙은 같은 발신자를 2회 이상 동일 카테고리로 수정해야 활성화
+- few-shot 예시는 최대 10개까지 프롬프트에 포함 (토큰 절약)
+
+## 2026-02-28 — frontend-dev (사용자 피드백 기반 분류 개선 - Frontend)
+### 완료한 작업
+- **사용자 피드백 통계 UI** 구현 완료 (Frontend)
+  - `frontend/src/app/page.tsx` — 카테고리 사이드바 하단에 "학습 현황" 섹션 추가
+    - 새 인터페이스: `FeedbackStats` (total_feedbacks, sender_rules, recent_feedbacks)
+    - 새 state: `feedbackStats`, `showSenderRules` (발신자 규칙 펼침/접기)
+    - `loadFeedbackStats()` — `GET /api/classify/feedback-stats?user_id=N` 호출
+    - 피드백 통계 표시:
+      - 총 피드백 수, 발신자 규칙 수
+      - 발신자 규칙 상세 (펼침/접기): 발신자 이메일 → 카테고리 (N건)
+      - 상위 5개 규칙만 표시 + "외 N건" 안내
+    - 피드백 없을 때: "분류를 수정하면 AI가 학습합니다" 안내 메시지
+    - 분류 수정(`handleUpdateCategory`) 후 `loadFeedbackStats()` 자동 호출
+  - 디자인:
+    - `text-xs`, `text-sm` 폰트 크기 (보조 정보)
+    - `text-zinc-500` 계열 색상
+    - 다크 모드 완벽 지원 (`dark:` 클래스)
+    - 카테고리 색상 뱃지 재사용 (`CATEGORY_COLORS`)
+    - border-t로 카테고리 nav와 구분
+- 검증: `pnpm lint` 통과
+### 다음 할 일
+- **Backend**: `GET /api/classify/feedback-stats` 엔드포인트 구현 필요
+  - `backend/app/services/feedback.py`의 `get_feedback_stats()` 이미 존재
+  - `backend/app/routers/classify.py`에 엔드포인트 추가만 하면 됨
+- Phase 3 전체 완료 후 통합 테스트 필요
+### 이슈/참고
+- 기존 코드 삭제 없이 사이드바 하단에 추가만 수행
+- TypeScript strict mode 준수, 외부 라이브러리 미사용
+- 발신자 규칙은 접기/펼치기로 공간 효율적 사용
+- Backend 엔드포인트 구현 전이므로 API 호출은 에러 처리됨 (catch → null)
+
 ## 2026-02-28 — backend-dev + frontend-dev (카테고리 사이드바 + 드래그&드롭)
 ### 완료한 작업
 - **라벨/카테고리 사이드바 + 드래그&드롭** 완료

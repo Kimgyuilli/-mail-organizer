@@ -6,7 +6,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Classification, Label, Mail, User, get_db
-from app.services.classifier import DEFAULT_CATEGORIES, classify_batch, classify_single
+from app.services.classifier import (
+    DEFAULT_CATEGORIES,
+    classify_batch,
+    classify_single,
+)
+from app.services.feedback import (
+    get_feedback_examples,
+    get_feedback_stats,
+    get_sender_rules,
+)
 
 router = APIRouter(prefix="/api/classify", tags=["classify"])
 
@@ -87,6 +96,10 @@ async def classify_user_mails(
     if not mails:
         return {"classified": 0, "results": []}
 
+    # 피드백 데이터 조회
+    feedback_examples = await get_feedback_examples(db, user_id, limit=20)
+    sender_rules = await get_sender_rules(db, user_id, min_count=2)
+
     # Prepare batch input
     email_dicts = [
         {
@@ -99,12 +112,22 @@ async def classify_user_mails(
     ]
 
     try:
-        classifications = await classify_batch(email_dicts)
+        classifications = await classify_batch(
+            email_dicts,
+            feedback_examples=feedback_examples,
+            sender_rules=sender_rules,
+        )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Classification failed: {exc}")
 
-    # Ensure default labels exist
+    # Ensure default labels exist and build label cache
     await _ensure_default_labels(db, user_id)
+    label_cache: dict[str, Label] = {}
+    all_labels_result = await db.execute(
+        select(Label).where(Label.user_id == user_id)
+    )
+    for lbl in all_labels_result.scalars().all():
+        label_cache[lbl.name] = lbl
 
     results = []
     for cls in classifications:
@@ -116,15 +139,13 @@ async def classify_user_mails(
         category = cls.get("category", "알림")
         confidence = cls.get("confidence", 0.0)
 
-        # Find or create label
-        label_result = await db.execute(
-            select(Label).where(Label.user_id == user_id, Label.name == category)
-        )
-        label = label_result.scalar_one_or_none()
+        # Find or create label (using cache)
+        label = label_cache.get(category)
         if label is None:
             label = Label(user_id=user_id, name=category, is_default=False)
             db.add(label)
             await db.flush()
+            label_cache[category] = label
 
         # Save classification
         classification = Classification(
@@ -200,6 +221,14 @@ async def update_classification(
         db.add(label)
         await db.flush()
 
+    # 원래 카테고리 보존 (첫 수정 시에만)
+    if classification.original_category is None:
+        old_label_result = await db.execute(
+            select(Label).where(Label.id == classification.label_id)
+        )
+        old_label = old_label_result.scalar_one_or_none()
+        classification.original_category = old_label.name if old_label else None
+
     classification.label_id = label.id
     classification.user_feedback = req.new_category
     await db.commit()
@@ -215,6 +244,28 @@ async def update_classification(
 async def get_categories():
     """Return the list of available classification categories."""
     return {"categories": DEFAULT_CATEGORIES}
+
+
+@router.get("/feedback-stats")
+async def get_classification_feedback_stats(
+    user_id: int = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """사용자의 분류 피드백 통계 조회.
+
+    Returns:
+        - total_feedbacks: 총 피드백 수
+        - sender_rules_count: 발신자 규칙 수
+        - sender_rules: 발신자별 규칙 목록 (발신자, 카테고리, 횟수)
+        - recent_feedbacks: 최근 피드백 목록
+    """
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    stats = await get_feedback_stats(db, user_id)
+    return stats
 
 
 async def _ensure_default_labels(db: AsyncSession, user_id: int) -> None:

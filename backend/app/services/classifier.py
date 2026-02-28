@@ -56,14 +56,66 @@ def _truncate_body(body: str | None, max_chars: int = 500) -> str:
     return body[:max_chars] + ("..." if len(body) > max_chars else "")
 
 
+def _build_feedback_section(examples: list[dict]) -> str:
+    """사용자 피드백 예시를 프롬프트에 추가할 섹션으로 변환."""
+    if not examples:
+        return ""
+
+    lines = [
+        "## 사용자의 이전 분류 수정 기록 (이 패턴을 참고하세요):",
+        "",
+    ]
+
+    for ex in examples[:10]:  # 최대 10개만 사용
+        from_info = f"{ex.get('from_email', '')} ({ex.get('from_name', '')})"
+        subject = ex.get("subject", "")
+        original = ex.get("original_category", "")
+        corrected = ex.get("corrected_category", "")
+
+        lines.append(
+            f'- "발신자: {from_info}, 제목: {subject}" '
+            f'→ 원래 "{original}"로 분류했으나 사용자가 "{corrected}"로 수정'
+        )
+
+    return "\n".join(lines)
+
+
 async def classify_single(
     from_email: str,
     from_name: str,
     subject: str,
     body: str | None,
+    feedback_examples: list[dict] | None = None,
+    sender_rules: dict[str, str] | None = None,
 ) -> dict:
-    """Classify a single email using Claude API."""
+    """Classify a single email using Claude API.
+
+    Args:
+        from_email: 발신자 이메일
+        from_name: 발신자 이름
+        subject: 제목
+        body: 본문
+        feedback_examples: 사용자 피드백 예시 (few-shot learning)
+        sender_rules: 발신자별 자동 분류 규칙
+
+    Returns:
+        dict with keys: category, confidence, reason
+    """
+    # 발신자 규칙 우선 적용
+    if sender_rules and from_email and from_email in sender_rules:
+        return {
+            "category": sender_rules[from_email],
+            "confidence": 1.0,
+            "reason": "발신자 규칙 적용 (사용자 피드백 기반)",
+        }
+
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+
+    # Few-shot 프롬프트 생성
+    system_prompt = SYSTEM_PROMPT
+    if feedback_examples:
+        feedback_section = _build_feedback_section(feedback_examples)
+        system_prompt = f"{SYSTEM_PROMPT}\n\n{feedback_section}"
 
     user_message = SINGLE_TEMPLATE.format(
         from_email=from_email or "",
@@ -75,7 +127,7 @@ async def classify_single(
     response = await client.messages.create(
         model="claude-sonnet-4-5-20250929",
         max_tokens=256,
-        system=SYSTEM_PROMPT,
+        system=system_prompt,
         messages=[{"role": "user", "content": user_message}],
     )
 
@@ -85,17 +137,49 @@ async def classify_single(
 
 async def classify_batch(
     emails: list[dict],
+    feedback_examples: list[dict] | None = None,
+    sender_rules: dict[str, str] | None = None,
 ) -> list[dict]:
     """Classify multiple emails in a single API call.
 
     Each email dict should have keys: from_email, from_name, subject, body.
-    Returns list of classification results with index.
+
+    Args:
+        emails: 메일 목록
+        feedback_examples: 사용자 피드백 예시 (few-shot learning)
+        sender_rules: 발신자별 자동 분류 규칙
+
+    Returns:
+        list of classification results with index
     """
     if not emails:
         return []
 
-    parts = []
+    # 발신자 규칙으로 자동 분류 가능한 메일 분리
+    auto_classified = []
+    needs_ai = []
+    index_map = {}  # AI 분류할 메일의 원래 인덱스 매핑
+
     for i, mail in enumerate(emails):
+        from_email = mail.get("from_email", "")
+        if sender_rules and from_email and from_email in sender_rules:
+            auto_classified.append({
+                "index": i,
+                "category": sender_rules[from_email],
+                "confidence": 1.0,
+                "reason": "발신자 규칙 적용 (사용자 피드백 기반)",
+            })
+        else:
+            index_map[len(needs_ai)] = i
+            needs_ai.append(mail)
+
+    # AI 분류가 필요한 메일이 없으면 바로 반환
+    if not needs_ai:
+        return auto_classified
+
+    # AI 분류 프롬프트 생성
+    parts = []
+    for i, mail in enumerate(needs_ai):
         parts.append(
             f"[메일 {i}]\n"
             f"- 발신자: {mail.get('from_email', '')} ({mail.get('from_name', '')})\n"
@@ -105,14 +189,31 @@ async def classify_batch(
 
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
+    # Few-shot 프롬프트 생성
+    system_prompt = SYSTEM_PROMPT
+    if feedback_examples:
+        feedback_section = _build_feedback_section(feedback_examples)
+        system_prompt = f"{SYSTEM_PROMPT}\n\n{feedback_section}"
+
     user_message = BATCH_TEMPLATE.format(emails_text="\n\n".join(parts))
 
     response = await client.messages.create(
         model="claude-sonnet-4-5-20250929",
         max_tokens=1024,
-        system=SYSTEM_PROMPT,
+        system=system_prompt,
         messages=[{"role": "user", "content": user_message}],
     )
 
     text = response.content[0].text.strip()
-    return json.loads(text)
+    ai_results = json.loads(text)
+
+    # AI 결과의 index를 원래 메일 목록의 index로 변환
+    for result in ai_results:
+        ai_index = result.get("index", 0)
+        result["index"] = index_map.get(ai_index, ai_index)
+
+    # 자동 분류 결과와 AI 분류 결과 병합 후 index 순으로 정렬
+    all_results = auto_classified + ai_results
+    all_results.sort(key=lambda x: x.get("index", 0))
+
+    return all_results

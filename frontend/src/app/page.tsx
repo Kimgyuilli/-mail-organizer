@@ -64,6 +64,12 @@ interface CategoryCountsResponse {
   categories: CategoryCount[];
 }
 
+interface FeedbackStats {
+  total_feedbacks: number;
+  sender_rules: { from_email: string; category: string; count: number }[];
+  recent_feedbacks: { subject: string; original: string; corrected: string; date: string }[];
+}
+
 const CATEGORY_COLORS: Record<string, string> = {
   업무: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   개인: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
@@ -106,6 +112,8 @@ export default function Home() {
   const [connectingNaver, setConnectingNaver] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [categoryCounts, setCategoryCounts] = useState<CategoryCountsResponse | null>(null);
+  const [feedbackStats, setFeedbackStats] = useState<FeedbackStats | null>(null);
+  const [showSenderRules, setShowSenderRules] = useState(false);
   const limit = 20;
 
   // Check for stored user_id
@@ -158,6 +166,23 @@ export default function Home() {
   useEffect(() => {
     loadCategoryCounts();
   }, [loadCategoryCounts]);
+
+  // Load feedback stats
+  const loadFeedbackStats = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const data = await apiFetch<FeedbackStats>(
+        `/api/classify/feedback-stats?user_id=${userId}`
+      );
+      setFeedbackStats(data);
+    } catch {
+      setFeedbackStats(null);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    loadFeedbackStats();
+  }, [loadFeedbackStats]);
 
   const loadMessages = useCallback(
     async (newOffset?: number) => {
@@ -325,6 +350,7 @@ export default function Home() {
       }
       setEditingMailId(null);
       await loadCategoryCounts();
+      await loadFeedbackStats();
     } catch (err) {
       alert(`수정 실패: ${err}`);
     }
@@ -796,6 +822,81 @@ export default function Home() {
               </span>
             </button>
           </nav>
+
+          {/* Feedback Stats Section */}
+          <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800">
+            <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-3">
+              학습 현황
+            </h2>
+
+            {feedbackStats && feedbackStats.total_feedbacks > 0 ? (
+              <div className="space-y-3">
+                <div className="px-3 py-2 bg-zinc-50 dark:bg-zinc-900 rounded-lg">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-zinc-600 dark:text-zinc-400">피드백</span>
+                    <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                      {feedbackStats.total_feedbacks}건
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs mt-1.5">
+                    <span className="text-zinc-600 dark:text-zinc-400">발신자 규칙</span>
+                    <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                      {feedbackStats.sender_rules.length}건
+                    </span>
+                  </div>
+                </div>
+
+                {feedbackStats.sender_rules.length > 0 && (
+                  <div>
+                    <button
+                      onClick={() => setShowSenderRules(!showSenderRules)}
+                      className="flex items-center justify-between w-full px-3 py-2 text-xs text-left text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-lg transition-colors"
+                    >
+                      <span>발신자 규칙 상세</span>
+                      <span className="text-zinc-400">
+                        {showSenderRules ? "▲" : "▼"}
+                      </span>
+                    </button>
+
+                    {showSenderRules && (
+                      <div className="mt-2 space-y-1.5 px-2">
+                        {feedbackStats.sender_rules.slice(0, 5).map((rule) => (
+                          <div
+                            key={rule.from_email}
+                            className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed"
+                          >
+                            <div className="truncate font-medium text-zinc-700 dark:text-zinc-300">
+                              {rule.from_email}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span>→</span>
+                              <span
+                                className={`inline-block px-1.5 py-0.5 rounded-full text-xs ${
+                                  CATEGORY_COLORS[rule.category] || DEFAULT_BADGE
+                                }`}
+                              >
+                                {rule.category}
+                              </span>
+                              <span className="text-zinc-400">({rule.count}건)</span>
+                            </div>
+                          </div>
+                        ))}
+                        {feedbackStats.sender_rules.length > 5 && (
+                          <div className="text-xs text-zinc-400 text-center pt-1">
+                            외 {feedbackStats.sender_rules.length - 5}건
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="px-3 py-4 text-xs text-zinc-500 dark:text-zinc-400 text-center leading-relaxed">
+                분류를 수정하면 AI가 학습합니다
+              </div>
+            )}
+          </div>
         </aside>
 
         {/* Mail List */}
