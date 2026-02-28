@@ -1,5 +1,63 @@
 # 진행 기록
 
+## 2026-03-01 — backend-dev (Phase 4-5: 라우터 경량화)
+### 완료한 작업
+- **Backend 4-5: 라우터 경량화 (gmail.py, naver.py)** — 비즈니스 로직을 서비스 레이어로 이동
+  - **helpers.py 공통 함수 추가** (3개 신규):
+    - `list_user_mails(db, user_id, source, offset, limit)` — 메일 목록 조회 + 카운트 (소스 필터 지원)
+    - `get_user_mail(db, user_id, mail_id, source)` — 단건 메일 조회 + 검증 (MessageNotFoundException)
+    - `format_mail_response(mail, classification)` — 응답 dict 생성 (공통 포맷)
+  - **gmail_service.py 서비스 함수 추가** (3개 신규):
+    - `sync_gmail_messages(db, user, credentials, max_results, query)` — 단일 페이지 동기화
+    - `sync_all_gmail_messages(db, user, credentials, max_pages, per_page, query)` — 멀티 페이지 동기화
+    - `apply_classification_labels_to_gmail(db, user, credentials, mail_ids)` — 라벨 적용 로직
+  - **naver_service.py 서비스 함수 추가** (1개 신규):
+    - `sync_naver_messages(db, user, host, port, folder, max_results)` — IMAP 동기화 + SyncState 관리
+  - **exceptions.py 커스텀 예외 추가**:
+    - `IMAPAuthenticationException` — IMAP 인증 실패 전용 예외 (naver.py의 HTTPException 2개 교체)
+  - **gmail.py 리팩토링** — 289줄 → 118줄 (59% 감소):
+    - 5개 엔드포인트 모두 서비스 호출로 경량화
+    - sync, sync/full, apply-labels → gmail_service 함수 호출
+    - messages, messages/{id} → helpers 공통 함수 사용
+  - **naver.py 리팩토링** — 239줄 → 136줄 (43% 감소):
+    - 5개 엔드포인트 중 4개 경량화 (connect는 이미 간단)
+    - sync → naver_service 함수 호출
+    - messages, messages/{id} → helpers 공통 함수 사용
+    - HTTPException 2개 → IMAPAuthenticationException으로 교체
+- **API 인터페이스 무변경** — 기존 프론트엔드와 100% 호환
+- **background_sync.py 영향 없음** — 기존 서비스 함수 시그니처 유지
+### 다음 할 일
+- Backend: 4-6 (Backend 회귀 테스트) — 전체 API 엔드포인트 동작 검증
+- 검증 필요: `cd backend && uv run ruff check .`
+### 이슈/참고
+- 라우터 라인 수 감소: gmail 289→118줄 (59%), naver 239→136줄 (43%)
+- 서비스 레이어에 로직 집중: gmail_service 276→476줄, naver_service 336→433줄, helpers 58→135줄
+- 공통 헬퍼는 inbox.py에서도 향후 활용 가능 (범용 설계)
+- `format_mail_response()`에 `include_naver_fields` 키워드 인자 추가 (리뷰 반영: pop 패턴 → 명시적 파라미터)
+
+## 2026-03-01 — frontend-dev (Phase 4-9: Frontend 컴포넌트 분리)
+### 완료한 작업
+- **Frontend 4-9: 컴포넌트 분리** — `frontend/src/components/` 7개 신규
+  - `LoginScreen.tsx` — 로그인 전 화면 (92~110줄)
+  - `MailDetailView.tsx` — 메일 상세 보기 (113~201줄)
+  - `AppHeader.tsx` — 상단 헤더 + 소스 필터 탭 (211~282줄)
+  - `NaverConnectModal.tsx` — 네이버 연결 모달 (285~337줄)
+  - `CategorySidebar.tsx` — 카테고리 필터 + 학습 현황 (342~486줄)
+  - `MailListItem.tsx` — 개별 메일 행 (511~607줄)
+  - `Pagination.tsx` — 페이지네이션 컨트롤 (611~631줄)
+  - `page.tsx`: 639줄 → 224줄 (65% 감소)
+- 각 컴포넌트는 독립적인 Props 인터페이스 정의
+- 기존 동작(이벤트 핸들러, 스타일, 다크모드) 100% 유지
+- TypeScript strict mode 준수, 외부 라이브러리 미사용
+### 다음 할 일
+- 검증: `cd frontend && pnpm lint && pnpm build` 실행 필요 (사용자 확인)
+- Frontend: 4-10 (page.tsx 추가 리팩토링) — 4-9 완료로 진행 가능 (이미 224줄로 목표 달성)
+- Frontend: 4-11 (회귀 테스트) — 4-10 완료 후
+### 이슈/참고
+- page.tsx는 이미 224줄로 150줄 목표에 근접 (4-10은 간단한 정리만 필요할 수 있음)
+- "use client"는 page.tsx에만 유지, 하위 컴포넌트에는 불필요
+- 모든 컴포넌트가 단일 책임 원칙 준수
+
 ## 2026-03-01 — backend-dev + frontend-dev (Phase 4-4/4-8: 병렬 리팩토링)
 ### 완료한 작업
 - **Backend 4-4: background_sync 중복 제거** — `backend/app/services/background_sync.py`

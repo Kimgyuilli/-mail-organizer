@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.exceptions import MessageNotFoundException
 from app.models import Classification, Label, Mail
 
 
@@ -55,3 +56,91 @@ async def filter_new_external_ids(
     )
     existing_ids = set(existing.scalars().all())
     return [eid for eid in external_ids if eid not in existing_ids]
+
+
+async def list_user_mails(
+    db: AsyncSession,
+    user_id: int,
+    source: str | None,
+    offset: int,
+    limit: int,
+) -> tuple[list[Mail], int]:
+    """List user mails with pagination. Returns (mails, total).
+
+    If source is None, returns all mails. Otherwise filters by source.
+    """
+    query_base = select(Mail).where(Mail.user_id == user_id)
+    if source:
+        query_base = query_base.where(Mail.source == source)
+
+    query = (
+        query_base
+        .order_by(Mail.received_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    mails = list(result.scalars().all())
+
+    count_query = select(func.count(Mail.id)).where(Mail.user_id == user_id)
+    if source:
+        count_query = count_query.where(Mail.source == source)
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
+
+    return mails, total
+
+
+async def get_user_mail(
+    db: AsyncSession,
+    user_id: int,
+    mail_id: int,
+    source: str | None,
+) -> Mail:
+    """Get a single user mail by ID.
+
+    Raises MessageNotFoundException if not found.
+    If source is provided, also validates the source.
+    """
+    query = select(Mail).where(
+        Mail.id == mail_id,
+        Mail.user_id == user_id,
+    )
+    if source:
+        query = query.where(Mail.source == source)
+
+    result = await db.execute(query)
+    mail = result.scalar_one_or_none()
+    if mail is None:
+        raise MessageNotFoundException()
+    return mail
+
+
+def format_mail_response(
+    mail: Mail,
+    classification: dict | None,
+    *,
+    include_naver_fields: bool = True,
+) -> dict:
+    """Format mail object into API response dict.
+
+    Set include_naver_fields=False for Gmail-only endpoints
+    to exclude to_email and folder fields.
+    """
+    result: dict = {
+        "id": mail.id,
+        "external_id": mail.external_id,
+        "from_email": mail.from_email,
+        "from_name": mail.from_name,
+        "subject": mail.subject,
+        "body_text": mail.body_text,
+        "received_at": (
+            mail.received_at.isoformat() if mail.received_at else None
+        ),
+        "is_read": mail.is_read,
+        "classification": classification,
+    }
+    if include_naver_fields:
+        result["to_email"] = mail.to_email
+        result["folder"] = mail.folder
+    return result

@@ -38,3 +38,8 @@ class ClassificationFailedException(HTTPException):
 class ExternalServiceException(HTTPException):
     def __init__(self, detail: str = "External service error") -> None:
         super().__init__(status_code=502, detail=detail)
+
+
+class IMAPAuthenticationException(HTTPException):
+    def __init__(self, detail: str = "IMAP authentication failed") -> None:
+        super().__init__(status_code=400, detail=detail)

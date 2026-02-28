@@ -8,7 +8,12 @@ import imaplib
 import re
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.models import User
 
 
 @contextmanager
@@ -333,3 +338,95 @@ def _parse_date(date_str: str) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
+
+
+# ---------------------------------------------------------------------------
+# High-level sync operations for routers
+# ---------------------------------------------------------------------------
+
+
+async def sync_naver_messages(
+    db: AsyncSession,
+    user: User,
+    host: str,
+    port: int,
+    folder: str,
+    max_results: int,
+) -> dict[str, int]:
+    """Sync Naver IMAP messages and save new ones to DB.
+
+    Returns dict with synced, total_fetched.
+    """
+    from sqlalchemy import select
+
+    from app.models import Mail, SyncState
+    from app.services.helpers import filter_new_external_ids
+
+    sync_result = await db.execute(
+        select(SyncState).where(
+            SyncState.user_id == user.id,
+            SyncState.source == "naver",
+        )
+    )
+    sync_state = sync_result.scalar_one_or_none()
+    since_uid = sync_state.last_uid if sync_state else None
+
+    # Fetch messages from IMAP
+    result = await fetch_messages(
+        host,
+        port,
+        user.naver_email,
+        user.naver_app_password,
+        folder=folder,
+        since_uid=since_uid,
+        max_results=max_results,
+    )
+
+    messages = result["messages"]
+    last_uid = result["last_uid"]
+
+    if not messages:
+        return {"synced": 0, "total_fetched": 0}
+
+    # Filter out already-synced messages
+    external_ids = [m["external_id"] for m in messages]
+    new_external_ids = await filter_new_external_ids(db, user.id, "naver", external_ids)
+    new_messages = [m for m in messages if m["external_id"] in set(new_external_ids)]
+
+    # Save new messages to DB
+    for msg in new_messages:
+        mail = Mail(
+            user_id=user.id,
+            source="naver",
+            external_id=msg["external_id"],
+            from_email=msg["from_email"],
+            from_name=msg["from_name"],
+            to_email=msg["to_email"],
+            subject=msg["subject"],
+            body_text=msg["body_text"],
+            folder=msg["folder"],
+            received_at=msg["received_at"],
+            is_read=msg["is_read"],
+        )
+        db.add(mail)
+
+    # Update sync state
+    if last_uid:
+        if sync_state is None:
+            sync_state = SyncState(
+                user_id=user.id,
+                source="naver",
+                last_uid=last_uid,
+                last_synced_at=datetime.now(tz=UTC),
+            )
+            db.add(sync_state)
+        else:
+            sync_state.last_uid = last_uid
+            sync_state.last_synced_at = datetime.now(tz=UTC)
+
+    await db.commit()
+
+    return {
+        "synced": len(new_messages),
+        "total_fetched": len(messages),
+    }

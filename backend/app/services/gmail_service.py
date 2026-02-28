@@ -3,10 +3,15 @@ from __future__ import annotations
 import base64
 import email.utils
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.models import User
 
 
 def _build_gmail(credentials: Credentials):
@@ -273,3 +278,199 @@ def _strip_html(html: str) -> str:
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
+
+
+# ---------------------------------------------------------------------------
+# High-level sync operations for routers
+# ---------------------------------------------------------------------------
+
+
+async def sync_gmail_messages(
+    db: AsyncSession,
+    user: User,
+    credentials: Credentials,
+    max_results: int,
+    query: str | None,
+) -> dict[str, Any]:
+    """Sync Gmail messages (single page) and save new ones to DB.
+
+    Returns dict with synced, total_fetched, next_page_token.
+    """
+    from app.models import Mail
+    from app.services.helpers import filter_new_external_ids
+
+    # List message IDs from Gmail
+    result = await list_message_ids(
+        credentials,
+        max_results=max_results,
+        query=query,
+    )
+    gmail_ids = result["message_ids"]
+
+    if not gmail_ids:
+        return {
+            "synced": 0,
+            "total_fetched": 0,
+            "next_page_token": None,
+        }
+
+    # Filter out already-synced messages
+    new_ids = await filter_new_external_ids(db, user.id, "gmail", gmail_ids)
+
+    if not new_ids:
+        return {
+            "synced": 0,
+            "total_fetched": len(gmail_ids),
+            "next_page_token": result["next_page_token"],
+        }
+
+    # Fetch full details for new messages
+    details = await get_messages_batch(credentials, new_ids)
+
+    # Save to DB
+    for detail in details:
+        mail = Mail(
+            user_id=user.id,
+            source="gmail",
+            external_id=detail["external_id"],
+            from_email=detail["from_email"],
+            from_name=detail["from_name"],
+            subject=detail["subject"],
+            body_text=detail["body_text"],
+            received_at=detail["received_at"],
+            is_read=detail["is_read"],
+        )
+        db.add(mail)
+
+    await db.commit()
+
+    return {
+        "synced": len(details),
+        "total_fetched": len(gmail_ids),
+        "next_page_token": result["next_page_token"],
+    }
+
+
+async def sync_all_gmail_messages(
+    db: AsyncSession,
+    user: User,
+    credentials: Credentials,
+    max_pages: int,
+    per_page: int,
+    query: str | None,
+) -> dict[str, int]:
+    """Sync multiple pages of Gmail messages.
+
+    Returns dict with total_synced.
+    """
+    from app.models import Mail
+    from app.services.helpers import filter_new_external_ids
+
+    total_synced = 0
+    page_token = None
+
+    for _ in range(max_pages):
+        result = await list_message_ids(
+            credentials,
+            max_results=per_page,
+            page_token=page_token,
+            query=query,
+        )
+        gmail_ids = result["message_ids"]
+
+        if not gmail_ids:
+            break
+
+        # Filter already-synced
+        new_ids = await filter_new_external_ids(db, user.id, "gmail", gmail_ids)
+
+        if new_ids:
+            details = await get_messages_batch(credentials, new_ids)
+            for detail in details:
+                mail = Mail(
+                    user_id=user.id,
+                    source="gmail",
+                    external_id=detail["external_id"],
+                    from_email=detail["from_email"],
+                    from_name=detail["from_name"],
+                    subject=detail["subject"],
+                    body_text=detail["body_text"],
+                    received_at=detail["received_at"],
+                    is_read=detail["is_read"],
+                )
+                db.add(mail)
+            await db.commit()
+            total_synced += len(details)
+
+        page_token = result["next_page_token"]
+        if not page_token:
+            break
+
+    return {"total_synced": total_synced}
+
+
+async def apply_classification_labels_to_gmail(
+    db: AsyncSession,
+    user: User,
+    credentials: Credentials,
+    mail_ids: list[int],
+) -> dict[str, Any]:
+    """Apply AI classification results as Gmail labels.
+
+    Returns dict with applied count and results list.
+    """
+    from sqlalchemy import select
+
+    from app.exceptions import MessageNotFoundException
+    from app.models import Classification, Label, Mail
+
+    # Load mails with their classifications
+    result = await db.execute(
+        select(Mail).where(
+            Mail.id.in_(mail_ids),
+            Mail.user_id == user.id,
+            Mail.source == "gmail",
+        )
+    )
+    mails = list(result.scalars().all())
+
+    if not mails:
+        raise MessageNotFoundException()
+
+    applied = []
+    for mail in mails:
+        # Get classification for this mail
+        cls_result = await db.execute(
+            select(Classification)
+            .where(Classification.mail_id == mail.id)
+            .order_by(Classification.created_at.desc())
+        )
+        classification = cls_result.scalar_one_or_none()
+        if classification is None:
+            continue
+
+        # Get label name
+        label_result = await db.execute(
+            select(Label).where(Label.id == classification.label_id)
+        )
+        label = label_result.scalar_one_or_none()
+        if label is None:
+            continue
+
+        # Prefix with "AI/" to avoid conflicts with user labels
+        gmail_label_name = f"AI/{label.name}"
+        gmail_label_id = await get_or_create_gmail_label(
+            credentials, gmail_label_name
+        )
+
+        await apply_labels(
+            credentials, mail.external_id, [gmail_label_id]
+        )
+
+        applied.append({
+            "mail_id": mail.id,
+            "subject": mail.subject,
+            "gmail_label": gmail_label_name,
+        })
+
+    return {"applied": len(applied), "results": applied}
