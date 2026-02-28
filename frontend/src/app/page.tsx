@@ -2,95 +2,18 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
-
-interface ClassificationInfo {
-  classification_id: number;
-  category: string;
-  confidence: number | null;
-  user_feedback: string | null;
-}
-
-interface MailMessage {
-  id: number;
-  source: "gmail" | "naver";
-  external_id: string;
-  from_email: string | null;
-  from_name: string | null;
-  subject: string | null;
-  to_email: string | null;
-  folder: string | null;
-  received_at: string | null;
-  is_read: boolean;
-  classification: ClassificationInfo | null;
-}
-
-interface MailListResponse {
-  total: number;
-  offset: number;
-  limit: number;
-  messages: MailMessage[];
-}
-
-interface MailDetail {
-  id: number;
-  source: "gmail" | "naver";
-  from_email: string | null;
-  from_name: string | null;
-  subject: string | null;
-  body_text: string | null;
-  to_email: string | null;
-  folder: string | null;
-  received_at: string | null;
-  is_read: boolean;
-  classification: ClassificationInfo | null;
-}
-
-interface UserInfo {
-  user_id: number;
-  email: string;
-  google_connected: boolean;
-  naver_connected: boolean;
-}
-
-interface CategoryCount {
-  name: string;
-  count: number;
-  color: string | null;
-}
-
-interface CategoryCountsResponse {
-  total: number;
-  unclassified: number;
-  categories: CategoryCount[];
-}
-
-interface FeedbackStats {
-  total_feedbacks: number;
-  sender_rules: { from_email: string; category: string; count: number }[];
-  recent_feedbacks: { subject: string; original: string; corrected: string; date: string }[];
-}
-
-const CATEGORY_COLORS: Record<string, string> = {
-  업무: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  개인: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  금융: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-  프로모션: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
-  뉴스레터: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-  알림: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
-  중요: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-};
-
-const CATEGORY_DOT_COLORS: Record<string, string> = {
-  업무: "bg-blue-500",
-  개인: "bg-green-500",
-  금융: "bg-yellow-500",
-  프로모션: "bg-orange-500",
-  뉴스레터: "bg-purple-500",
-  알림: "bg-gray-500",
-  중요: "bg-red-500",
-};
-
-const DEFAULT_BADGE = "bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300";
+import type {
+  MailMessage,
+  MailListResponse,
+  MailDetail,
+  UserInfo,
+  CategoryCountsResponse,
+  FeedbackStats,
+} from "@/types/mail";
+import { CATEGORY_COLORS, CATEGORY_DOT_COLORS, DEFAULT_BADGE } from "@/constants/categories";
+import { CategoryBadge } from "@/components/CategoryBadge";
+import { SourceBadge } from "@/components/SourceBadge";
+import { formatDate } from "@/utils/date";
 
 export default function Home() {
   const [userId, setUserId] = useState<number | null>(null);
@@ -452,22 +375,6 @@ export default function Home() {
     setUserInfo(null);
     setMessages([]);
     setSelectedMail(null);
-  };
-
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return "";
-    const d = new Date(dateStr);
-    const now = new Date();
-    if (d.toDateString() === now.toDateString()) {
-      return d.toLocaleTimeString("ko-KR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    }
-    return d.toLocaleDateString("ko-KR", {
-      month: "short",
-      day: "numeric",
-    });
   };
 
   // Not logged in
@@ -1048,63 +955,5 @@ export default function Home() {
         </main>
       </div>
     </div>
-  );
-}
-
-function CategoryBadge({
-  category,
-  confidence,
-  userFeedback,
-  small,
-}: {
-  category: string;
-  confidence: number | null;
-  userFeedback: string | null;
-  small?: boolean;
-}) {
-  const colors = CATEGORY_COLORS[category] || DEFAULT_BADGE;
-  const sizeClass = small ? "px-1.5 py-0.5 text-xs" : "px-2.5 py-1 text-xs";
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full font-medium ${colors} ${sizeClass}`}
-    >
-      {userFeedback && (
-        <span title="수동 수정됨" className="opacity-60">
-          *
-        </span>
-      )}
-      {category}
-      {confidence !== null && !small && (
-        <span className="opacity-60">
-          {Math.round(confidence * 100)}%
-        </span>
-      )}
-    </span>
-  );
-}
-
-function SourceBadge({
-  source,
-  small,
-}: {
-  source: "gmail" | "naver";
-  small?: boolean;
-}) {
-  const isGmail = source === "gmail";
-  const bgColor = isGmail
-    ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200"
-    : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200";
-  const sizeClass = small
-    ? "w-5 h-5 text-xs"
-    : "w-6 h-6 text-sm";
-  const label = isGmail ? "G" : "N";
-
-  return (
-    <span
-      className={`inline-flex items-center justify-center rounded-full font-bold ${bgColor} ${sizeClass}`}
-      title={isGmail ? "Gmail" : "네이버"}
-    >
-      {label}
-    </span>
   );
 }

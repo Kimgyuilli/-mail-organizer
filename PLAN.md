@@ -47,13 +47,13 @@
 | 태스크 | 담당 | 상태 | 의존 | 비고 |
 |--------|------|------|------|------|
 | 4-0: 환경 셋업 (테스트 인프라 + 스킬/에이전트 확장) | backend-dev + frontend-dev | done | - | pytest, vitest, /analyze 스킬, 에이전트 리팩토링 원칙 |
-| 4-1: 공통 쿼리 헬퍼 추출 | backend-dev | pending | 4-0 | 중복 DB 쿼리를 services/helpers로 추출 |
-| 4-2: 사용자 검증 Depends 통일 | backend-dev | pending | 4-0 | 라우터마다 수동 User 쿼리 → Depends로 통일 |
-| 4-3: 커스텀 예외 + 에러 핸들러 | backend-dev | pending | 4-0 | HTTPException 직접 사용 → 커스텀 예외 클래스 |
+| 4-1: 공통 쿼리 헬퍼 추출 | backend-dev | done | 4-0 | services/helpers.py (get_mail_classifications, filter_new_external_ids) |
+| 4-2: 사용자 검증 Depends 통일 | backend-dev | done | 4-0 | dependencies.py (get_current_user, get_google_user, get_naver_user) |
+| 4-3: 커스텀 예외 + 에러 핸들러 | backend-dev | done | 4-0 | exceptions.py (6개 커스텀 예외 클래스) |
 | 4-4: background_sync 중복 제거 | backend-dev | pending | 4-1, 4-2 | Gmail/Naver 동기화 70% 중복 → 공통 로직 추출 |
 | 4-5: 라우터 경량화 (gmail, naver) | backend-dev | pending | 4-1, 4-2, 4-3 | 비즈니스 로직을 services로 이동 |
 | 4-6: Backend 회귀 테스트 | backend-dev | pending | 4-5 | 리팩토링 후 전체 API 동작 검증 |
-| 4-7: Frontend 타입/상수 분리 | frontend-dev | pending | 4-0 | 인터페이스, 상수를 별도 파일로 추출 |
+| 4-7: Frontend 타입/상수 분리 | frontend-dev | done | 4-0 | types/mail.ts, constants/categories.ts, components/, utils/date.ts |
 | 4-8: Frontend 커스텀 훅 추출 | frontend-dev | pending | 4-7 | useState/useEffect를 커스텀 훅으로 분리 |
 | 4-9: Frontend 컴포넌트 분리 | frontend-dev | pending | 4-7, 4-8 | 인라인 컴포넌트를 components/로 분리 |
 | 4-10: page.tsx 리팩토링 (150줄 목표) | frontend-dev | pending | 4-8, 4-9 | 1,110줄 → 150줄 목표 |

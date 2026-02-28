@@ -4,32 +4,27 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Classification, Label, Mail, get_db
+from app.dependencies import get_current_user
+from app.models import Classification, Label, Mail, User, get_db
+from app.services.helpers import get_mail_classifications
 
 router = APIRouter(prefix="/api/inbox", tags=["inbox"])
 
 
 @router.get("/messages")
 async def list_all_messages(
-    user_id: int = Query(...),
     source: str | None = Query(default=None),
     category: str | None = Query(default=None),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=20, le=100),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List synced messages from all sources (Gmail + Naver) with classification.
+    """List synced messages from all sources (Gmail + Naver) with classification."""
+    user_id = user.id
 
-    Args:
-        user_id: User ID
-        source: Filter by source ("gmail", "naver", or None for all)
-        category: Filter by category name or "unclassified" for unclassified mails
-        offset: Pagination offset
-        limit: Results per page
-    """
     # Build query with optional filters
     if category == "unclassified":
-        # Get mails without any classification
         query = (
             select(Mail)
             .outerjoin(Classification, Mail.id == Classification.mail_id)
@@ -48,7 +43,6 @@ async def list_all_messages(
             count_query = count_query.where(Mail.source == source)
 
     elif category:
-        # Get mails with specific category
         query = (
             select(Mail)
             .join(Classification, Mail.id == Classification.mail_id)
@@ -69,7 +63,6 @@ async def list_all_messages(
             count_query = count_query.where(Mail.source == source)
 
     else:
-        # No category filter - original behavior
         where_clauses = [Mail.user_id == user_id]
         if source:
             where_clauses.append(Mail.source == source)
@@ -83,14 +76,10 @@ async def list_all_messages(
     result = await db.execute(query)
     mails = list(result.scalars().all())
 
-    # Count total
     count_result = await db.execute(count_query)
     total = count_result.scalar()
 
-    # Fetch classifications for these mails
-    classifications = await _get_classifications_for_mails(
-        db, [m.id for m in mails]
-    )
+    classifications = await get_mail_classifications(db, [m.id for m in mails])
 
     return {
         "total": total,
@@ -119,21 +108,13 @@ async def list_all_messages(
 
 @router.get("/category-counts")
 async def get_category_counts(
-    user_id: int = Query(...),
     source: str | None = Query(default=None),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get message counts by category.
+    """Get message counts by category."""
+    user_id = user.id
 
-    Args:
-        user_id: User ID
-        source: Filter by source ("gmail", "naver", or None for all)
-
-    Returns:
-        total: Total message count
-        unclassified: Count of unclassified messages
-        categories: List of {name, count, color} for each category
-    """
     # Build base where clause
     where_clauses = [Mail.user_id == user_id]
     if source:
@@ -145,7 +126,7 @@ async def get_category_counts(
     )
     total = total_result.scalar() or 0
 
-    # Unclassified count (mails without any classification)
+    # Unclassified count
     unclassified_query = (
         select(func.count(Mail.id))
         .outerjoin(Classification, Mail.id == Classification.mail_id)
@@ -156,7 +137,6 @@ async def get_category_counts(
     unclassified = unclassified_result.scalar() or 0
 
     # Category counts (latest classification per mail)
-    # Use subquery to get latest classification per mail
     latest_classification_subquery = (
         select(
             Classification.mail_id,
@@ -200,31 +180,3 @@ async def get_category_counts(
         "unclassified": unclassified,
         "categories": categories,
     }
-
-
-async def _get_classifications_for_mails(
-    db: AsyncSession,
-    mail_ids: list[int],
-) -> dict[int, dict]:
-    """Get latest classification for each mail. Returns {mail_id: {...}}."""
-    if not mail_ids:
-        return {}
-
-    result = await db.execute(
-        select(Classification, Label)
-        .join(Label, Classification.label_id == Label.id)
-        .where(Classification.mail_id.in_(mail_ids))
-        .order_by(Classification.created_at.desc())
-    )
-    rows = result.all()
-
-    classifications: dict[int, dict] = {}
-    for cls, label in rows:
-        if cls.mail_id not in classifications:
-            classifications[cls.mail_id] = {
-                "classification_id": cls.id,
-                "category": label.name,
-                "confidence": cls.confidence,
-                "user_feedback": cls.user_feedback,
-            }
-    return classifications

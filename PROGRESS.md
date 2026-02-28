@@ -1,5 +1,35 @@
 # 진행 기록
 
+## 2026-02-28 — backend-dev + frontend-dev (Phase 4-1/4-2/4-3/4-7: 병렬 리팩토링)
+### 완료한 작업
+- **Backend 4-3: 커스텀 예외** — `backend/app/exceptions.py` 신규
+  - 6개 커스텀 예외: UserNotFoundException, MessageNotFoundException, ClassificationNotFoundException, AccountNotConnectedException, NotAuthorizedException, ClassificationFailedException, ExternalServiceException
+  - 5개 라우터에서 18개 HTTPException → 커스텀 예외로 교체
+- **Backend 4-2: 사용자 검증 Depends 통일** — `backend/app/dependencies.py` 신규
+  - `get_current_user(user_id)` — 공통 사용자 검증 Depends
+  - `get_google_user` — Google OAuth 연결 검증 + 토큰 갱신
+  - `get_naver_user` — 네이버 IMAP 연결 검증
+  - 15개 엔드포인트에서 수동 User 쿼리 → Depends로 통일
+  - auth.py의 `get_current_user_credentials`, naver.py의 `_get_naver_user` 제거
+- **Backend 4-1: 공통 쿼리 헬퍼** — `backend/app/services/helpers.py` 신규
+  - `get_mail_classifications(db, mail_ids)` — 3개 라우터의 동일 함수 통합
+  - `filter_new_external_ids(db, user_id, source, ids)` — 중복 동기화 필터링 통합
+  - gmail.py, naver.py, inbox.py에서 중복 함수 제거 → import로 교체
+- **Frontend 4-7: 타입/상수 분리** — page.tsx 1,111줄에서 ~130줄 감소
+  - `frontend/src/types/mail.ts` — 8개 인터페이스 추출
+  - `frontend/src/constants/categories.ts` — CATEGORY_COLORS, CATEGORY_DOT_COLORS, DEFAULT_BADGE
+  - `frontend/src/components/CategoryBadge.tsx` — CategoryBadge 컴포넌트 추출
+  - `frontend/src/components/SourceBadge.tsx` — SourceBadge 컴포넌트 추출
+  - `frontend/src/utils/date.ts` — formatDate 유틸 추출
+- 검증: `ruff check .` 통과, `pnpm lint` 통과, `pnpm build` 성공
+### 다음 할 일
+- Backend: 4-4 (background_sync 중복 제거), 4-5 (라우터 경량화) — 4-1/4-2 완료로 진행 가능
+- Frontend: 4-8 (커스텀 훅 추출) — 4-7 완료로 진행 가능
+### 이슈/참고
+- gmail.py의 read-only 엔드포인트(messages, messages/{id})는 get_current_user 사용 (Google 인증 불필요)
+- gmail.py의 write 엔드포인트(sync, sync/full, apply-labels)는 get_google_user 사용
+- background_sync.py는 라우터 함수를 import하지 않으므로 영향 없음
+
 ## 2026-02-28 — backend-dev + frontend-dev (Phase 4-0: 환경 셋업)
 ### 완료한 작업
 - **테스트 인프라 구축**

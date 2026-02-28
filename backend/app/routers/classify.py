@@ -1,10 +1,16 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.dependencies import get_current_user
+from app.exceptions import (
+    ClassificationFailedException,
+    ClassificationNotFoundException,
+    NotAuthorizedException,
+)
 from app.models import Classification, Label, Mail, User, get_db
 from app.services.classifier import (
     DEFAULT_CATEGORIES,
@@ -44,7 +50,7 @@ async def classify_single_mail(req: ClassifySingleRequest):
             body=req.body,
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Classification failed: {exc}")
+        raise ClassificationFailedException(detail=f"Classification failed: {exc}")
 
     return ClassifySingleResponse(
         category=result.get("category", "알림"),
@@ -55,21 +61,13 @@ async def classify_single_mail(req: ClassifySingleRequest):
 
 @router.post("/mails")
 async def classify_user_mails(
-    user_id: int = Query(...),
     source: str | None = Query(default=None),
     mail_ids: list[int] | None = None,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Classify user's mails and save results to DB.
-
-    If mail_ids is provided, classify only those mails.
-    If source is provided ("gmail" or "naver"), filter by source.
-    Otherwise, classify all unclassified mails for the user.
-    """
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+    """Classify user's mails and save results to DB."""
+    user_id = user.id
 
     query = select(Mail).where(Mail.user_id == user_id)
     if source:
@@ -118,7 +116,7 @@ async def classify_user_mails(
             sender_rules=sender_rules,
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Classification failed: {exc}")
+        raise ClassificationFailedException(detail=f"Classification failed: {exc}")
 
     # Ensure default labels exist and build label cache
     await _ensure_default_labels(db, user_id)
@@ -179,10 +177,12 @@ class UpdateClassificationRequest(BaseModel):
 @router.put("/update")
 async def update_classification(
     req: UpdateClassificationRequest,
-    user_id: int = Query(...),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Manually update a classification's label (user feedback)."""
+    user_id = user.id
+
     result = await db.execute(
         select(Classification).where(
             Classification.id == req.classification_id
@@ -190,9 +190,7 @@ async def update_classification(
     )
     classification = result.scalar_one_or_none()
     if classification is None:
-        raise HTTPException(
-            status_code=404, detail="Classification not found"
-        )
+        raise ClassificationNotFoundException()
 
     # Verify mail belongs to user
     mail_result = await db.execute(
@@ -202,7 +200,7 @@ async def update_classification(
         )
     )
     if mail_result.scalar_one_or_none() is None:
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise NotAuthorizedException()
 
     # Find or create the new label
     label_result = await db.execute(
@@ -248,23 +246,11 @@ async def get_categories():
 
 @router.get("/feedback-stats")
 async def get_classification_feedback_stats(
-    user_id: int = Query(...),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """사용자의 분류 피드백 통계 조회.
-
-    Returns:
-        - total_feedbacks: 총 피드백 수
-        - sender_rules_count: 발신자 규칙 수
-        - sender_rules: 발신자별 규칙 목록 (발신자, 카테고리, 횟수)
-        - recent_feedbacks: 최근 피드백 목록
-    """
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    stats = await get_feedback_stats(db, user_id)
+    """사용자의 분류 피드백 통계 조회."""
+    stats = await get_feedback_stats(db, user.id)
     return stats
 
 

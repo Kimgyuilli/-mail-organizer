@@ -9,7 +9,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models import Classification, Label, Mail, SyncState, User, get_db
+from app.dependencies import get_current_user, get_naver_user
+from app.exceptions import ExternalServiceException, MessageNotFoundException
+from app.models import Mail, SyncState, User, get_db
+from app.services.helpers import filter_new_external_ids, get_mail_classifications
 from app.services.naver_service import fetch_messages, list_folders, verify_credentials
 
 router = APIRouter(prefix="/api/naver", tags=["naver"])
@@ -23,15 +26,10 @@ class NaverConnectRequest(BaseModel):
 @router.post("/connect")
 async def connect_naver(
     req: NaverConnectRequest,
-    user_id: int = Query(...),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Connect Naver account by verifying IMAP credentials."""
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
     # Verify IMAP credentials
     try:
         ok = await verify_credentials(
@@ -46,10 +44,7 @@ async def connect_naver(
             detail=f"IMAP 인증 실패: {exc}",
         )
     except (TimeoutError, OSError) as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"IMAP 서버 연결 실패: {exc}",
-        )
+        raise ExternalServiceException(detail=f"IMAP 서버 연결 실패: {exc}")
 
     if not ok:
         raise HTTPException(status_code=400, detail="IMAP 인증 실패")
@@ -64,12 +59,9 @@ async def connect_naver(
 
 @router.get("/folders")
 async def get_folders(
-    user_id: int = Query(...),
-    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_naver_user),
 ):
     """List available IMAP folders."""
-    user = await _get_naver_user(user_id, db)
-
     folders = await list_folders(
         settings.naver_imap_host,
         settings.naver_imap_port,
@@ -82,17 +74,12 @@ async def get_folders(
 
 @router.post("/sync")
 async def sync_messages(
-    user_id: int = Query(...),
     folder: str = Query(default="INBOX"),
     max_results: int = Query(default=50, le=200),
+    user: User = Depends(get_naver_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Sync messages from Naver IMAP folder.
-
-    Uses SyncState to track last synced UID for incremental sync.
-    """
-    user = await _get_naver_user(user_id, db)
-
+    """Sync messages from Naver IMAP folder."""
     # Get sync state
     sync_result = await db.execute(
         select(SyncState).where(
@@ -122,16 +109,8 @@ async def sync_messages(
 
     # Filter out already-synced messages
     external_ids = [m["external_id"] for m in messages]
-    existing = await db.execute(
-        select(Mail.external_id).where(
-            Mail.user_id == user.id,
-            Mail.source == "naver",
-            Mail.external_id.in_(external_ids),
-        )
-    )
-    existing_ids = set(existing.scalars().all())
-
-    new_messages = [m for m in messages if m["external_id"] not in existing_ids]
+    new_external_ids = await filter_new_external_ids(db, user.id, "naver", external_ids)
+    new_messages = [m for m in messages if m["external_id"] in set(new_external_ids)]
 
     # Save new messages to DB
     for msg in new_messages:
@@ -174,7 +153,7 @@ async def sync_messages(
 
 @router.get("/messages")
 async def list_messages(
-    user_id: int = Query(...),
+    user: User = Depends(get_current_user),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=20, le=100),
     db: AsyncSession = Depends(get_db),
@@ -182,7 +161,7 @@ async def list_messages(
     """List synced Naver messages from DB with classification."""
     query = (
         select(Mail)
-        .where(Mail.user_id == user_id, Mail.source == "naver")
+        .where(Mail.user_id == user.id, Mail.source == "naver")
         .order_by(Mail.received_at.desc())
         .offset(offset)
         .limit(limit)
@@ -192,14 +171,12 @@ async def list_messages(
 
     count_result = await db.execute(
         select(func.count(Mail.id)).where(
-            Mail.user_id == user_id, Mail.source == "naver"
+            Mail.user_id == user.id, Mail.source == "naver"
         )
     )
     total = count_result.scalar()
 
-    classifications = await _get_classifications_for_mails(
-        db, [m.id for m in mails]
-    )
+    classifications = await get_mail_classifications(db, [m.id for m in mails])
 
     return {
         "total": total,
@@ -227,22 +204,22 @@ async def list_messages(
 @router.get("/messages/{mail_id}")
 async def get_message(
     mail_id: int,
-    user_id: int = Query(...),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get a single synced Naver message with body."""
     result = await db.execute(
         select(Mail).where(
             Mail.id == mail_id,
-            Mail.user_id == user_id,
+            Mail.user_id == user.id,
             Mail.source == "naver",
         )
     )
     mail = result.scalar_one_or_none()
     if mail is None:
-        raise HTTPException(status_code=404, detail="Message not found")
+        raise MessageNotFoundException()
 
-    classifications = await _get_classifications_for_mails(db, [mail.id])
+    classifications = await get_mail_classifications(db, [mail.id])
 
     return {
         "id": mail.id,
@@ -259,47 +236,3 @@ async def get_message(
         "is_read": mail.is_read,
         "classification": classifications.get(mail.id),
     }
-
-
-async def _get_naver_user(
-    user_id: int,
-    db: AsyncSession,
-) -> User:
-    """Load user and verify Naver credentials exist."""
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    if not user.naver_email or not user.naver_app_password:
-        raise HTTPException(
-            status_code=401, detail="Naver account not connected"
-        )
-    return user
-
-
-async def _get_classifications_for_mails(
-    db: AsyncSession,
-    mail_ids: list[int],
-) -> dict[int, dict]:
-    """Get latest classification for each mail."""
-    if not mail_ids:
-        return {}
-
-    result = await db.execute(
-        select(Classification, Label)
-        .join(Label, Classification.label_id == Label.id)
-        .where(Classification.mail_id.in_(mail_ids))
-        .order_by(Classification.created_at.desc())
-    )
-    rows = result.all()
-
-    classifications: dict[int, dict] = {}
-    for cls, label in rows:
-        if cls.mail_id not in classifications:
-            classifications[cls.mail_id] = {
-                "classification_id": cls.id,
-                "category": label.name,
-                "confidence": cls.confidence,
-                "user_feedback": cls.user_feedback,
-            }
-    return classifications
