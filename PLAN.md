@@ -41,3 +41,20 @@
 | 라벨/카테고리 사이드바 + 드래그&드롭 | frontend-dev | done | 통합 인박스 UI | 카테고리 필터 + HTML5 DnD |
 | 사용자 피드백 기반 분류 개선 (Frontend) | frontend-dev | done | 통합 UI | 피드백 통계 UI 완료 |
 | 사용자 피드백 기반 분류 개선 (Backend) | backend-dev | done | Frontend UI | few-shot + 발신자 규칙 + 피드백 통계 API |
+
+## Phase 4: 코드 모듈화/리팩토링
+
+| 태스크 | 담당 | 상태 | 의존 | 비고 |
+|--------|------|------|------|------|
+| 4-0: 환경 셋업 (테스트 인프라 + 스킬/에이전트 확장) | backend-dev + frontend-dev | done | - | pytest, vitest, /analyze 스킬, 에이전트 리팩토링 원칙 |
+| 4-1: 공통 쿼리 헬퍼 추출 | backend-dev | pending | 4-0 | 중복 DB 쿼리를 services/helpers로 추출 |
+| 4-2: 사용자 검증 Depends 통일 | backend-dev | pending | 4-0 | 라우터마다 수동 User 쿼리 → Depends로 통일 |
+| 4-3: 커스텀 예외 + 에러 핸들러 | backend-dev | pending | 4-0 | HTTPException 직접 사용 → 커스텀 예외 클래스 |
+| 4-4: background_sync 중복 제거 | backend-dev | pending | 4-1, 4-2 | Gmail/Naver 동기화 70% 중복 → 공통 로직 추출 |
+| 4-5: 라우터 경량화 (gmail, naver) | backend-dev | pending | 4-1, 4-2, 4-3 | 비즈니스 로직을 services로 이동 |
+| 4-6: Backend 회귀 테스트 | backend-dev | pending | 4-5 | 리팩토링 후 전체 API 동작 검증 |
+| 4-7: Frontend 타입/상수 분리 | frontend-dev | pending | 4-0 | 인터페이스, 상수를 별도 파일로 추출 |
+| 4-8: Frontend 커스텀 훅 추출 | frontend-dev | pending | 4-7 | useState/useEffect를 커스텀 훅으로 분리 |
+| 4-9: Frontend 컴포넌트 분리 | frontend-dev | pending | 4-7, 4-8 | 인라인 컴포넌트를 components/로 분리 |
+| 4-10: page.tsx 리팩토링 (150줄 목표) | frontend-dev | pending | 4-8, 4-9 | 1,110줄 → 150줄 목표 |
+| 4-11: Frontend 회귀 테스트 | frontend-dev | pending | 4-10 | 리팩토링 후 UI 동작 검증 |

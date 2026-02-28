@@ -1,5 +1,30 @@
 # 진행 기록
 
+## 2026-02-28 — backend-dev + frontend-dev (Phase 4-0: 환경 셋업)
+### 완료한 작업
+- **테스트 인프라 구축**
+  - Backend: `backend/pyproject.toml`에 pytest, pytest-asyncio, httpx dev deps 추가 + `[tool.pytest.ini_options]` 설정
+  - Backend: `backend/tests/conftest.py` — in-memory SQLite async engine, session fixture, FastAPI TestClient (httpx AsyncClient) fixture
+  - Backend: `backend/tests/test_health.py` — `GET /health` smoke test
+  - Backend: 디렉토리 생성 `backend/tests/`, `backend/tests/routers/`, `backend/tests/services/` (각 `__init__.py`)
+  - Frontend: `frontend/package.json`에 vitest, @testing-library/react, @testing-library/jest-dom, @vitejs/plugin-react, jsdom devDeps + `"test": "vitest run"` 스크립트 추가
+  - Frontend: `frontend/vitest.config.ts` — jsdom 환경, `@` alias, setup 파일 지정
+  - Frontend: `frontend/src/test/setup.ts` — `@testing-library/jest-dom/vitest` import
+  - Frontend: `frontend/src/__tests__/smoke.test.tsx` — 최소 smoke test
+- **스킬/에이전트 확장**
+  - `.claude/skills/analyze/SKILL.md` — 신규: 리팩토링 전 구조 분석 스킬 (읽기 전용)
+  - `.claude/skills/review/SKILL.md` — "5. 구조/모듈화" 체크리스트 추가
+  - `.claude/agents/reviewer.md` — "5. 구조/모듈화" 체크리스트 추가
+  - `.claude/agents/backend-dev.md` — 리팩토링 원칙 5개 추가
+  - `.claude/agents/frontend-dev.md` — 리팩토링 원칙 4개 추가
+- **PLAN.md** — Phase 4 태스크 12개 추가 (4-0 ~ 4-11)
+### 다음 할 일
+- Backend(4-1~4-6)과 Frontend(4-7~4-11) 병렬 진행 가능
+- 먼저 `cd backend && uv sync && uv run pytest -v` / `cd frontend && pnpm install && pnpm test` 로 smoke test 통과 확인
+### 이슈/참고
+- conftest.py에서 app import 시 lifespan(스케줄러)이 실행되지 않도록 httpx ASGITransport 사용
+- vitest는 React 컴포넌트 테스트를 위해 @vitejs/plugin-react 포함
+
 ## 2026-02-28 — backend-dev (사용자 피드백 기반 분류 개선 - Backend) — Phase 3 완료!
 ### 완료한 작업
 - **사용자 피드백 기반 분류 개선** 완료 — 프로젝트 전체 로드맵 완료!
