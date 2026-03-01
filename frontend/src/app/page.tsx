@@ -179,25 +179,17 @@ export default function Home() {
       />
 
       {/* 3-panel layout */}
-      <div className="flex-1 overflow-hidden">
-        <ResizablePanelGroup orientation="horizontal">
-          {/* Sidebar panel - hidden on mobile */}
-          <ResizablePanel
-            defaultSize={18}
-            minSize={14}
-            maxSize={25}
-            className="hidden md:block"
-          >
-            <div className="h-full overflow-auto border-r">
-              {sidebarContent}
-            </div>
-          </ResizablePanel>
+      <div className="flex-1 overflow-hidden flex">
+        {/* Sidebar - separate from ResizablePanelGroup to avoid className issues */}
+        <aside className="hidden md:flex w-56 shrink-0 border-r overflow-auto">
+          {sidebarContent}
+        </aside>
 
-          <ResizableHandle className="hidden md:flex" />
+        <ResizablePanelGroup orientation="horizontal" className="flex-1">
 
           {/* Mail list panel */}
           <ResizablePanel
-            defaultSize={selectedMail ? 38 : 82}
+            defaultSize={selectedMail ? 50 : 100}
             minSize={30}
           >
             <MailListView
@@ -221,7 +213,7 @@ export default function Home() {
           {selectedMail && (
             <>
               <ResizableHandle withHandle />
-              <ResizablePanel defaultSize={44} minSize={30}>
+              <ResizablePanel defaultSize={50} minSize={30}>
                 <MailDetailView
                   mail={selectedMail}
                   categories={categories}
