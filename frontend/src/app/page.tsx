@@ -13,8 +13,7 @@ import { MailDetailView } from "@/components/MailDetailView";
 import { AppHeader } from "@/components/AppHeader";
 import { NaverConnectModal } from "@/components/NaverConnectModal";
 import { CategorySidebar } from "@/components/CategorySidebar";
-import { MailListItem } from "@/components/MailListItem";
-import { Pagination } from "@/components/Pagination";
+import { MailListView } from "@/components/MailListView";
 
 const LIMIT = 20;
 
@@ -95,6 +94,12 @@ export default function Home() {
     setOffset(0);
   };
 
+  const handleDragStart = (e: React.DragEvent, mailId: number, classificationId: number | null) => {
+    e.dataTransfer.setData("mailId", String(mailId));
+    e.dataTransfer.setData("classificationId", classificationId ? String(classificationId) : "");
+    e.dataTransfer.effectAllowed = "move";
+  };
+
   // Not logged in
   if (!userId) {
     return <LoginScreen onLogin={handleLogin} />;
@@ -161,57 +166,23 @@ export default function Home() {
         />
 
         <main className="flex-1 min-w-0">
-          {loading ? (
-            <div className="flex justify-center py-20">
-              <span className="text-zinc-500">로딩 중...</span>
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center gap-4 py-20">
-              <p className="text-zinc-500">메일이 없습니다.</p>
-              <p className="text-sm text-zinc-400">
-                &quot;메일 동기화&quot; 버튼을 눌러 Gmail에서 메일을
-                가져오세요.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="mb-3 flex items-center justify-between text-sm text-zinc-500">
-                <span>총 {total}개의 메일</span>
-                <span>
-                  분류됨: {classifiedCount}/{messages.length}
-                </span>
-              </div>
-              <div className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 divide-y divide-zinc-100 dark:divide-zinc-800">
-                {messages.map((mail) => (
-                  <MailListItem
-                    key={mail.id}
-                    mail={mail}
-                    categories={categories}
-                    editingMailId={editingMailId}
-                    onEdit={(mailId) => setEditingMailId(mailId)}
-                    onBlur={() => setEditingMailId(null)}
-                    onSelect={handleSelectMail}
-                    onDragStart={(e, mailId, classificationId) => {
-                      e.dataTransfer.setData("mailId", String(mailId));
-                      e.dataTransfer.setData(
-                        "classificationId",
-                        classificationId ? String(classificationId) : ""
-                      );
-                      e.dataTransfer.effectAllowed = "move";
-                    }}
-                    onUpdateCategory={handleUpdateCategory}
-                  />
-                ))}
-              </div>
-
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPrev={() => setOffset(Math.max(0, offset - LIMIT))}
-                onNext={() => setOffset(offset + LIMIT)}
-              />
-            </>
-          )}
+          <MailListView
+            loading={loading}
+            messages={messages}
+            total={total}
+            categories={categories}
+            editingMailId={editingMailId}
+            classifiedCount={classifiedCount}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onEditMail={setEditingMailId}
+            onEditBlur={() => setEditingMailId(null)}
+            onSelectMail={handleSelectMail}
+            onDragStart={handleDragStart}
+            onUpdateCategory={handleUpdateCategory}
+            onPrevPage={() => setOffset(Math.max(0, offset - LIMIT))}
+            onNextPage={() => setOffset(offset + LIMIT)}
+          />
         </main>
       </div>
     </div>

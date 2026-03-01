@@ -55,3 +55,113 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
         yield ac
 
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def sample_user(db_session: AsyncSession):
+    """Create a sample user with Google OAuth credentials."""
+    from app.models import User
+
+    user = User(
+        email="test@example.com",
+        google_oauth_token="test_token",
+        google_refresh_token="test_refresh",
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+async def sample_mails(db_session: AsyncSession, sample_user):
+    """Create sample Gmail and Naver mails."""
+    from datetime import UTC, datetime
+
+    from app.models import Mail
+
+    gmail1 = Mail(
+        user_id=sample_user.id,
+        source="gmail",
+        external_id="gmail_123",
+        from_email="sender1@example.com",
+        from_name="Sender One",
+        subject="Test Gmail 1",
+        to_email="test@example.com",
+        body_text="This is a test Gmail message.",
+        received_at=datetime.now(tz=UTC),
+        is_read=False,
+    )
+    gmail2 = Mail(
+        user_id=sample_user.id,
+        source="gmail",
+        external_id="gmail_456",
+        from_email="sender2@example.com",
+        from_name="Sender Two",
+        subject="Test Gmail 2",
+        to_email="test@example.com",
+        body_text="Another Gmail message.",
+        received_at=datetime.now(tz=UTC),
+        is_read=True,
+    )
+    naver1 = Mail(
+        user_id=sample_user.id,
+        source="naver",
+        external_id="naver_789",
+        from_email="naver@example.com",
+        from_name="Naver Sender",
+        subject="Test Naver Mail",
+        to_email="test@naver.com",
+        body_text="This is a Naver mail.",
+        folder="INBOX",
+        received_at=datetime.now(tz=UTC),
+        is_read=False,
+    )
+    db_session.add_all([gmail1, gmail2, naver1])
+    await db_session.commit()
+    await db_session.refresh(gmail1)
+    await db_session.refresh(gmail2)
+    await db_session.refresh(naver1)
+    return {"gmail1": gmail1, "gmail2": gmail2, "naver1": naver1}
+
+
+@pytest.fixture
+async def sample_labels(db_session: AsyncSession, sample_user):
+    """Create sample labels for categories."""
+    from app.models import Label
+
+    label_work = Label(
+        user_id=sample_user.id,
+        name="업무",
+        color="blue",
+        is_default=True,
+    )
+    label_personal = Label(
+        user_id=sample_user.id,
+        name="개인",
+        color="green",
+        is_default=True,
+    )
+    db_session.add_all([label_work, label_personal])
+    await db_session.commit()
+    await db_session.refresh(label_work)
+    await db_session.refresh(label_personal)
+    return {"work": label_work, "personal": label_personal}
+
+
+@pytest.fixture
+async def sample_classification(
+    db_session: AsyncSession, sample_mails, sample_labels
+):
+    """Create a sample classification for the first Gmail mail."""
+    from app.models import Classification
+
+    classification = Classification(
+        mail_id=sample_mails["gmail1"].id,
+        label_id=sample_labels["work"].id,
+        confidence=0.9,
+    )
+    db_session.add(classification)
+    await db_session.commit()
+    await db_session.refresh(classification)
+    return classification

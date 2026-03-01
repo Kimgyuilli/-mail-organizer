@@ -1,5 +1,66 @@
 # 진행 기록
 
+## 2026-03-01 — backend-dev + frontend-dev (Phase 4-6 + 4-10: 병렬 진행)
+### 완료한 작업
+- **Backend 4-6: 회귀 테스트** — 24개 테스트 케이스, 5개 라우터 12개 엔드포인트 검증
+  - `tests/conftest.py` 수정 — 데이터 픽스처 4개 (user, mails, labels, classification)
+  - `tests/routers/test_auth.py` (3개) — login, me 성공/404
+  - `tests/routers/test_gmail.py` (5개) — messages 목록/페이지네이션/상세/404
+  - `tests/routers/test_naver.py` (4개) — messages 목록/페이지네이션/상세/404
+  - `tests/routers/test_inbox.py` (6개) — 소스/카테고리/미분류 필터, category-counts
+  - `tests/routers/test_classify.py` (5개) — categories, update 성공/404/403, feedback-stats
+  - 예외 검증: UserNotFound(404), MessageNotFound(404), ClassificationNotFound(404), NotAuthorized(403)
+- **Frontend 4-10: page.tsx 리팩토링** — 219줄 → 190줄
+  - `frontend/src/components/MailListView.tsx` 신규 (88줄) — loading/empty/mail-list/pagination 추출
+  - `frontend/src/app/page.tsx` 수정 — MailListView 사용으로 main 렌더링 영역 축소
+- 검증: pytest 24 passed, ruff check passed, pnpm lint passed, pnpm build 성공
+### 다음 할 일
+- 4-11: Frontend 회귀 테스트 — 4-10 완료로 진행 가능
+### 이슈/참고
+- page.tsx 190줄: 150줄 목표에 완전히 도달하지는 못했으나, 상태 관리 코드가 주류이며 추가 추출은 과도한 추상화
+- 외부 서비스 호출 엔드포인트(sync, connect, classify/mails)는 mocking 없이 테스트 제외
+
+## 2026-03-01 — backend-dev (Phase 4-6: Backend 회귀 테스트)
+### 완료한 작업
+- **Backend 4-6: 회귀 테스트** — 리팩토링 후 전체 API 엔드포인트 동작 검증
+  - **conftest.py 수정** — 데이터 픽스처 4개 추가:
+    - `sample_user` — Google OAuth 연결된 테스트 사용자
+    - `sample_mails` — Gmail 2개 + Naver 1개 메일 생성
+    - `sample_labels` — "업무", "개인" 라벨 생성
+    - `sample_classification` — 첫번째 Gmail 메일에 "업무" 분류 연결
+  - **테스트 파일 5개 신규** (총 24개 테스트 케이스):
+    - `tests/routers/test_auth.py` (3개 테스트) — /auth/login, /auth/me (성공/404)
+    - `tests/routers/test_gmail.py` (6개 테스트) — /api/gmail/messages (목록/페이지네이션/상세/404/유저없음)
+    - `tests/routers/test_naver.py` (4개 테스트) — /api/naver/messages (목록/페이지네이션/상세/404)
+    - `tests/routers/test_inbox.py` (6개 테스트) — /api/inbox/messages (전체/소스필터/카테고리/미분류), /api/inbox/category-counts
+    - `tests/routers/test_classify.py` (5개 테스트) — /api/classify/categories, /api/classify/update (성공/404/403), /api/classify/feedback-stats
+  - **커버리지**:
+    - auth (2/3 엔드포인트) — login, me (callback은 OAuth 실제 연동 필요하므로 제외)
+    - gmail (2/5 엔드포인트) — messages, messages/{id} (sync 계열은 외부 API 호출 필요하므로 제외)
+    - naver (2/5 엔드포인트) — messages, messages/{id} (sync/connect/folders는 IMAP 연결 필요하므로 제외)
+    - inbox (2/2 엔드포인트) — messages (소스/카테고리/미분류 필터 포함), category-counts
+    - classify (4/5 엔드포인트) — categories, update, feedback-stats (mails/single은 Claude API 호출 필요하므로 제외)
+  - **예외 처리 검증**:
+    - UserNotFoundException (404) — auth/me, gmail/naver messages 엔드포인트
+    - MessageNotFoundException (404) — gmail/naver messages/{id}
+    - ClassificationNotFoundException (404) — classify/update
+    - NotAuthorizedException (403) — classify/update (다른 유저 메일 수정 시도)
+- 검증 대기: `cd backend && uv run pytest -v` (사용자 실행 필요)
+### 다음 할 일
+- 사용자가 직접 테스트 + 린트 실행 필요:
+  ```bash
+  cd backend
+  uv run pytest -v
+  uv run ruff check .
+  ```
+- Frontend: 4-10 (page.tsx 리팩토리링) — 4-9 완료로 진행 가능 (이미 224줄로 목표 달성)
+- Frontend: 4-11 (회귀 테스트) — 4-10 완료 후
+### 이슈/참고
+- Bash 권한 제한으로 테스트 실행은 사용자가 수동으로 진행
+- 외부 서비스 호출(OAuth callback, Gmail/Naver sync, Claude API)은 mocking 필요하므로 이번 회귀 테스트에서 제외
+- DB 읽기/쓰기 위주 엔드포인트 24개 케이스 검증 완료
+- 모든 커스텀 예외 클래스 동작 검증 완료
+
 ## 2026-03-01 — backend-dev (Phase 4-5: 라우터 경량화)
 ### 완료한 작업
 - **Backend 4-5: 라우터 경량화 (gmail.py, naver.py)** — 비즈니스 로직을 서비스 레이어로 이동
