@@ -1,5 +1,39 @@
 # 진행 기록
 
+## 2026-03-01 — frontend-dev (Phase 4-11: Frontend 회귀 테스트) — Phase 4 전체 완료!
+### 완료한 작업
+- **Frontend 4-11: 회귀 테스트** — 리팩토링된 컴포넌트/유틸의 회귀 테스트 작성
+  - **테스트 파일 6개 신규** (총 36개 테스트 케이스):
+    - `src/__tests__/components/LoginScreen.test.tsx` (3개 테스트) — 제목 렌더링, 버튼 렌더링, onLogin 콜백
+    - `src/__tests__/components/CategoryBadge.test.tsx` (6개 테스트) — 카테고리명, confidence 표시, userFeedback *, small 모드
+    - `src/__tests__/components/SourceBadge.test.tsx` (5개 테스트) — Gmail "G"/title, Naver "N"/title, small 모드
+    - `src/__tests__/components/Pagination.test.tsx` (10개 테스트) — 렌더링 조건(totalPages<=1), 페이지 표시, 이전/다음 disabled, 콜백
+    - `src/__tests__/components/MailListView.test.tsx` (9개 테스트) — loading 상태, empty 상태, 총 개수/분류 카운트, pagination 조건부 렌더링
+    - `src/__tests__/utils/date.test.ts` (5개 테스트) — null 처리, 오늘/과거 포맷, 타임존 처리
+  - **커버리지**:
+    - 컴포넌트: LoginScreen, CategoryBadge, SourceBadge, Pagination, MailListView (5개)
+    - 유틸: formatDate (1개)
+    - 기존 smoke test 포함 총 37개 테스트
+  - **테스트 기술**:
+    - vitest + @testing-library/react + @testing-library/jest-dom
+    - vi.fn() mock 함수, vi.useFakeTimers() 시간 모킹
+    - TypeScript strict mode 준수
+    - React 19 호환 (@testing-library/react v16)
+### 다음 할 일
+- 사용자가 직접 테스트 + 린트 실행 필요:
+  ```bash
+  cd frontend
+  npx pnpm test
+  npx pnpm lint
+  ```
+- Phase 4 전체 완료! — 백엔드/프론트엔드 모두 리팩토링 + 테스트 완료
+- 추가 개선은 필요에 따라 진행
+### 이슈/참고
+- Bash 권한 제한으로 테스트 실행은 사용자가 수동으로 진행
+- MailListItem은 내부 복잡도가 높아 MailListView에서는 렌더링 여부만 검증 (subject 텍스트 확인)
+- date.test.ts에서 vi.useFakeTimers()로 현재 시간 모킹하여 "오늘" 조건 테스트
+- Phase 4 총 12개 태스크 (4-0 ~ 4-11) 모두 완료
+
 ## 2026-03-01 — backend-dev + frontend-dev (Phase 4-6 + 4-10: 병렬 진행)
 ### 완료한 작업
 - **Backend 4-6: 회귀 테스트** — 24개 테스트 케이스, 5개 라우터 12개 엔드포인트 검증

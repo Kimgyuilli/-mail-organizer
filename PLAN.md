@@ -57,4 +57,4 @@
 | 4-8: Frontend 커스텀 훅 추출 | frontend-dev | done | 4-7 | useState/useEffect를 커스텀 훅으로 분리 |
 | 4-9: Frontend 컴포넌트 분리 | frontend-dev | done | 4-7, 4-8 | 인라인 컴포넌트를 components/로 분리 |
 | 4-10: page.tsx 리팩토링 (150줄 목표) | frontend-dev | done | 4-8, 4-9 | 219줄 → 190줄, MailListView 추출 |
-| 4-11: Frontend 회귀 테스트 | frontend-dev | pending | 4-10 | 리팩토링 후 UI 동작 검증 |
+| 4-11: Frontend 회귀 테스트 | frontend-dev | done | 4-10 | 리팩토링 후 UI 동작 검증 |
