@@ -50,6 +50,19 @@ JSON 배열로 응답:
 "confidence": 0.0~1.0, "reason": "한 줄"}}, ...]"""
 
 
+def _extract_json(text: str) -> str:
+    """Extract JSON from text that may contain markdown code fences."""
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        # Remove opening fence (```json or ```)
+        first_newline = stripped.index("\n")
+        stripped = stripped[first_newline + 1 :]
+        # Remove closing fence
+        if stripped.endswith("```"):
+            stripped = stripped[: -3].strip()
+    return stripped
+
+
 def _truncate_body(body: str | None, max_chars: int = 500) -> str:
     if not body:
         return "(본문 없음)"
@@ -131,7 +144,7 @@ async def classify_single(
         messages=[{"role": "user", "content": user_message}],
     )
 
-    text = response.content[0].text.strip()
+    text = _extract_json(response.content[0].text)
     return json.loads(text)
 
 
@@ -177,16 +190,6 @@ async def classify_batch(
     if not needs_ai:
         return auto_classified
 
-    # AI 분류 프롬프트 생성
-    parts = []
-    for i, mail in enumerate(needs_ai):
-        parts.append(
-            f"[메일 {i}]\n"
-            f"- 발신자: {mail.get('from_email', '')} ({mail.get('from_name', '')})\n"
-            f"- 제목: {mail.get('subject', '(제목 없음)')}\n"
-            f"- 본문: {_truncate_body(mail.get('body'))}"
-        )
-
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     # Few-shot 프롬프트 생성
@@ -195,22 +198,42 @@ async def classify_batch(
         feedback_section = _build_feedback_section(feedback_examples)
         system_prompt = f"{SYSTEM_PROMPT}\n\n{feedback_section}"
 
-    user_message = BATCH_TEMPLATE.format(emails_text="\n\n".join(parts))
+    # 10개씩 청크로 나눠서 API 호출 (토큰 초과 방지)
+    chunk_size = 10
+    ai_results = []
 
-    response = await client.messages.create(
-        model="claude-sonnet-4-5-20250929",
-        max_tokens=1024,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
-    )
+    for chunk_start in range(0, len(needs_ai), chunk_size):
+        chunk = needs_ai[chunk_start : chunk_start + chunk_size]
 
-    text = response.content[0].text.strip()
-    ai_results = json.loads(text)
+        parts = []
+        for i, mail in enumerate(chunk):
+            parts.append(
+                f"[메일 {i}]\n"
+                f"- 발신자: {mail.get('from_email', '')} "
+                f"({mail.get('from_name', '')})\n"
+                f"- 제목: {mail.get('subject', '(제목 없음)')}\n"
+                f"- 본문: {_truncate_body(mail.get('body'))}"
+            )
 
-    # AI 결과의 index를 원래 메일 목록의 index로 변환
-    for result in ai_results:
-        ai_index = result.get("index", 0)
-        result["index"] = index_map.get(ai_index, ai_index)
+        user_message = BATCH_TEMPLATE.format(emails_text="\n\n".join(parts))
+
+        response = await client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=4096,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}],
+        )
+
+        text = _extract_json(response.content[0].text)
+        chunk_results = json.loads(text)
+
+        # 청크 내 index를 원래 메일 목록의 index로 변환
+        for result in chunk_results:
+            ai_index = result.get("index", 0)
+            key = chunk_start + ai_index
+            original_index = index_map.get(key, key)
+            result["index"] = original_index
+        ai_results.extend(chunk_results)
 
     # 자동 분류 결과와 AI 분류 결과 병합 후 index 순으로 정렬
     all_results = auto_classified + ai_results

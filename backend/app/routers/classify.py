@@ -153,10 +153,6 @@ async def classify_user_mails(
         )
         db.add(classification)
 
-        # Associate label with mail
-        if label not in mail.labels:
-            mail.labels.append(label)
-
         results.append({
             "mail_id": mail.id,
             "subject": mail.subject,
