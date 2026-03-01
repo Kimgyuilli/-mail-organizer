@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { CATEGORY_COLORS, DEFAULT_BADGE } from "@/constants/categories";
 
 interface CategoryBadgeProps {
@@ -14,22 +15,22 @@ export function CategoryBadge({
   small,
 }: CategoryBadgeProps) {
   const colors = CATEGORY_COLORS[category] || DEFAULT_BADGE;
-  const sizeClass = small ? "px-1.5 py-0.5 text-xs" : "px-2.5 py-1 text-xs";
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full font-medium ${colors} ${sizeClass}`}
+    <Badge
+      variant="secondary"
+      className={`${colors} border-0 ${small ? "px-1.5 py-0 text-[10px]" : "px-2.5 py-0.5 text-xs"}`}
     >
       {userFeedback && (
-        <span title="수동 수정됨" className="opacity-60">
+        <span title="수동 수정됨" className="opacity-60 mr-0.5">
           *
         </span>
       )}
       {category}
       {confidence !== null && !small && (
-        <span className="opacity-60">
+        <span className="opacity-60 ml-1">
           {Math.round(confidence * 100)}%
         </span>
       )}
-    </span>
+    </Badge>
   );
 }

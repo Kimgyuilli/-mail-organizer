@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { toast } from "sonner";
 import { apiFetch } from "@/lib/api";
 import type { MailMessage, MailListResponse } from "@/types/mail";
 
@@ -68,7 +69,7 @@ export function useDragAndDrop({
         }
         await loadCategoryCounts();
       } catch (err) {
-        alert(`분류 실패: ${err}`);
+        toast.error(`분류 실패: ${err}`);
         await loadMessages();
         await loadCategoryCounts();
       }

@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
 interface PaginationProps {
   currentPage: number;
   totalPages: number;
@@ -16,24 +19,28 @@ export function Pagination({
   }
 
   return (
-    <div className="mt-4 flex items-center justify-center gap-3">
-      <button
+    <div className="flex items-center justify-center gap-2 py-4">
+      <Button
+        variant="outline"
+        size="sm"
         onClick={onPrev}
         disabled={currentPage === 1}
-        className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-30 dark:border-zinc-700"
       >
+        <ChevronLeft className="h-4 w-4" />
         이전
-      </button>
-      <span className="text-sm text-zinc-600 dark:text-zinc-400">
+      </Button>
+      <span className="text-sm text-muted-foreground px-2">
         {currentPage} / {totalPages}
       </span>
-      <button
+      <Button
+        variant="outline"
+        size="sm"
         onClick={onNext}
         disabled={currentPage >= totalPages}
-        className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-30 dark:border-zinc-700"
       >
         다음
-      </button>
+        <ChevronRight className="h-4 w-4" />
+      </Button>
     </div>
   );
 }

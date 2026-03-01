@@ -9,10 +9,11 @@ describe("SourceBadge", () => {
     expect(screen.getByText("G")).toBeInTheDocument();
   });
 
-  it("has Gmail title for gmail source", () => {
+  it("renders gmail badge with correct styling", () => {
     render(<SourceBadge source="gmail" small={false} />);
 
-    expect(screen.getByTitle("Gmail")).toBeInTheDocument();
+    const badge = screen.getByText("G");
+    expect(badge).toHaveClass("bg-blue-100");
   });
 
   it("displays N for naver source", () => {
@@ -21,15 +22,17 @@ describe("SourceBadge", () => {
     expect(screen.getByText("N")).toBeInTheDocument();
   });
 
-  it("has 네이버 title for naver source", () => {
+  it("renders naver badge with correct styling", () => {
     render(<SourceBadge source="naver" small={false} />);
 
-    expect(screen.getByTitle("네이버")).toBeInTheDocument();
+    const badge = screen.getByText("N");
+    expect(badge).toHaveClass("bg-green-100");
   });
 
   it("renders in small mode", () => {
     render(<SourceBadge source="gmail" small={true} />);
 
     expect(screen.getByText("G")).toBeInTheDocument();
+    expect(screen.getByText("G")).toHaveClass("w-5", "h-5");
   });
 });

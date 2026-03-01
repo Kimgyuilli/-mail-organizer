@@ -1,5 +1,67 @@
 # 진행 기록
 
+## 2026-03-02 — frontend-dev (Phase 5: UI 디자인 리뉴얼) — Phase 5 전체 완료!
+### 완료한 작업
+- **Phase 5: shadcn/ui 기반 UI 전면 리뉴얼** — 10개 태스크 (5-0 ~ 5-9) 일괄 완료
+- **5-0: shadcn/ui 초기 셋업**
+  - 의존성 추가: class-variance-authority, clsx, tailwind-merge, lucide-react, sonner, react-resizable-panels, @radix-ui/react-slot, @radix-ui/react-dialog, @radix-ui/react-dropdown-menu
+  - `src/lib/utils.ts` — cn() 유틸 함수
+  - `src/components/ui/` — 10개 UI 컴포넌트 (button, badge, input, separator, skeleton, tooltip, dialog, dropdown-menu, sheet, resizable)
+  - `globals.css` — shadcn/ui CSS 변수 (zinc 베이스), 애니메이션 @utility 정의
+  - `layout.tsx` — `<Toaster />` 추가 (sonner)
+- **5-1: 3-Panel 레이아웃**
+  - `page.tsx` — ResizablePanelGroup으로 Sidebar | MailList | MailDetail 3-panel 구현
+  - 메일 미선택 시 2-panel, 선택 시 3-panel (리사이즈 핸들 포함)
+  - 모바일: Sheet로 사이드바 슬라이드 아웃
+- **5-2: 공통 UI 컴포넌트 교체**
+  - 모든 `<button>` → shadcn `<Button>` (variant: ghost, outline, default)
+  - `<input>` → shadcn `<Input>`
+  - NaverConnectModal → `<Dialog>` 기반
+  - 카테고리 수정 `<select>` → `<DropdownMenu>` (MailListItem, MailDetailView)
+  - 로딩 "로딩 중..." → `<Skeleton>` 애니메이션
+  - SourceBadge에 `<Tooltip>` 추가
+- **5-3: 토스트 알림 (alert → sonner)**
+  - `useMailActions.ts` — 7개 alert → toast.success/toast.error/toast.warning
+  - `useNaverConnect.ts` — 2개 alert → toast
+  - `useDragAndDrop.ts` — 1개 alert → toast.error
+- **5-4: AppHeader 리디자인**
+  - 미니멀 헤더 (h-14): 로고 + 세그먼트 필터 + 액션 버튼 + 유저 DropdownMenu
+  - 유저 메뉴에 이메일, 연결 상태, 네이버 연결, 로그아웃 통합
+  - lucide-react 아이콘 (RefreshCw, Sparkles, Tag, User, LogOut, Menu)
+  - 모바일 햄버거 메뉴 버튼
+- **5-5: MailListItem 리디자인**
+  - 카테고리 수정: 인라인 select → DropdownMenu
+  - 선택된 메일 하이라이트 (bg-accent)
+  - editingMailId 패턴 제거 (DropdownMenu로 대체)
+- **5-6: MailDetailView 리디자인**
+  - 전체 페이지 → 우측 패널 (flex h-full flex-col)
+  - 닫기 버튼 (X), 분류 변경 DropdownMenu, Separator로 섹션 구분
+- **5-7: CategorySidebar 리디자인**
+  - lucide-react 아이콘 (Inbox, Brain, ChevronDown/Up)
+  - Badge 카운트, Separator로 학습 현황 구분
+  - cn() 유틸로 조건부 스타일링
+- **5-8: 반응형 + 다크모드**
+  - CSS 변수 기반 다크모드 (shadcn zinc 팔레트)
+  - 모바일: Sheet 사이드바 + 1-panel 목록
+  - 데스크탑: 3-panel 풀 레이아웃
+  - sm/md breakpoint 반응형 버튼 텍스트
+- **5-9: 테스트 업데이트**
+  - SourceBadge.test.tsx — title 테스트 → 스타일 클래스 테스트로 변경
+  - MailListView.test.tsx — 새 props 인터페이스 반영 (selectedMailId)
+  - 35 tests 전체 통과
+- **보너스: useAuth.ts 리팩토링**
+  - useState + useEffect → useSyncExternalStore 패턴으로 변경
+  - react-hooks/set-state-in-effect 린트 에러 해소 (pre-existing)
+- 검증: `pnpm lint` 통과, `pnpm build` 성공, `pnpm test` 35/35 통과
+### 다음 할 일
+- `pnpm dev`로 개발 서버에서 UI 직접 확인
+- 3-panel 리사이즈 동작, 토스트 알림, DropdownMenu 동작 검증
+- 모바일 뷰포트에서 Sheet 사이드바 확인
+### 이슈/참고
+- react-resizable-panels v4 API: PanelGroup→Group, PanelResizeHandle→Separator, direction→orientation
+- Tailwind v4 @utility는 특수문자([, %, /] 등) 포함 이름 불가 → 복잡 애니메이션은 inline style로 처리
+- 기존 dark: 접두사 Tailwind 클래스 → shadcn CSS 변수 기반으로 전환 (자동 다크모드)
+
 ## 2026-03-01 — frontend-dev (Phase 4-11: Frontend 회귀 테스트) — Phase 4 전체 완료!
 ### 완료한 작업
 - **Frontend 4-11: 회귀 테스트** — 리팩토링된 컴포넌트/유틸의 회귀 테스트 작성

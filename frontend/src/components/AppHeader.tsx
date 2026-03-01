@@ -1,4 +1,23 @@
 import { UserInfo } from "@/types/mail";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import {
+  RefreshCw,
+  Sparkles,
+  Tag,
+  User,
+  LogOut,
+  Link,
+  Menu,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface AppHeaderProps {
   userInfo: UserInfo | null;
@@ -13,7 +32,14 @@ interface AppHeaderProps {
   onLogout: () => void;
   onNaverConnect: () => void;
   onSourceFilterChange: (source: "all" | "gmail" | "naver") => void;
+  onMobileMenuToggle?: () => void;
 }
+
+const SOURCE_TABS = [
+  { key: "all" as const, label: "전체" },
+  { key: "gmail" as const, label: "Gmail" },
+  { key: "naver" as const, label: "네이버" },
+];
 
 export function AppHeader({
   userInfo,
@@ -28,74 +54,119 @@ export function AppHeader({
   onLogout,
   onNaverConnect,
   onSourceFilterChange,
+  onMobileMenuToggle,
 }: AppHeaderProps) {
   return (
-    <header className="border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="mx-auto max-w-6xl">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold text-black dark:text-white">
-            Mail Organizer
-          </h1>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">
-              {userInfo?.email}
-            </span>
-            {userInfo && !userInfo.naver_connected && (
-              <button
-                onClick={onNaverConnect}
-                className="rounded-md border border-green-600 px-3 py-1.5 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-950 transition-colors"
-              >
-                네이버 메일 연결
-              </button>
-            )}
-            <button
-              onClick={onSync}
-              disabled={syncing}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              {syncing ? "동기화 중..." : "메일 동기화"}
-            </button>
-            <button
-              onClick={onClassify}
-              disabled={classifying}
-              className="rounded-md bg-violet-600 px-3 py-1.5 text-sm text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
-            >
-              {classifying ? "분류 중..." : "AI 분류"}
-            </button>
-            {sourceFilter === "gmail" && (
-              <button
-                onClick={onApplyLabels}
-                disabled={applyingLabels || classifiedCount === 0}
-                className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-              >
-                {applyingLabels ? "적용 중..." : "Gmail 라벨 적용"}
-              </button>
-            )}
-            <button
-              onClick={onLogout}
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
-            >
-              로그아웃
-            </button>
-          </div>
-        </div>
+    <header className="flex h-14 items-center border-b px-4 gap-3">
+      {/* Mobile menu button */}
+      {onMobileMenuToggle && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+          onClick={onMobileMenuToggle}
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+      )}
 
-        {/* Source Filter Tabs */}
-        <div className="flex gap-1">
-          {(["all", "gmail", "naver"] as const).map((src) => (
-            <button
-              key={src}
-              onClick={() => onSourceFilterChange(src)}
-              className={`px-4 py-1.5 text-sm font-medium rounded transition-colors ${
-                sourceFilter === src
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
-              }`}
-            >
-              {src === "all" ? "전체" : src === "gmail" ? "Gmail" : "네이버"}
-            </button>
-          ))}
-        </div>
+      {/* Logo */}
+      <h1 className="text-base font-semibold tracking-tight hidden sm:block">
+        Mail Organizer
+      </h1>
+
+      {/* Source filter tabs */}
+      <div className="flex items-center rounded-lg bg-muted p-0.5 ml-2">
+        {SOURCE_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => onSourceFilterChange(tab.key)}
+            className={cn(
+              "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+              sourceFilter === tab.key
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Spacer */}
+      <div className="flex-1" />
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-1.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onSync}
+          disabled={syncing}
+        >
+          <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
+          <span className="hidden sm:inline">
+            {syncing ? "동기화 중" : "동기화"}
+          </span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClassify}
+          disabled={classifying}
+        >
+          <Sparkles className="h-4 w-4" />
+          <span className="hidden sm:inline">
+            {classifying ? "분류 중" : "AI 분류"}
+          </span>
+        </Button>
+
+        {sourceFilter === "gmail" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onApplyLabels}
+            disabled={applyingLabels || classifiedCount === 0}
+          >
+            <Tag className="h-4 w-4" />
+            <span className="hidden sm:inline">
+              {applyingLabels ? "적용 중" : "라벨 적용"}
+            </span>
+          </Button>
+        )}
+
+        {/* User menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <User className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel className="font-normal">
+              <p className="text-sm font-medium">{userInfo?.email}</p>
+              <p className="text-xs text-muted-foreground">
+                {userInfo?.google_connected ? "Google 연결됨" : ""}
+                {userInfo?.naver_connected ? " · 네이버 연결됨" : ""}
+              </p>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {userInfo && !userInfo.naver_connected && (
+              <>
+                <DropdownMenuItem onClick={onNaverConnect}>
+                  <Link className="h-4 w-4" />
+                  네이버 메일 연결
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            <DropdownMenuItem onClick={onLogout}>
+              <LogOut className="h-4 w-4" />
+              로그아웃
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

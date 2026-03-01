@@ -1,14 +1,21 @@
 import { MailMessage } from "@/types/mail";
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { SourceBadge } from "@/components/SourceBadge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { formatDate } from "@/utils/date";
+import { cn } from "@/lib/utils";
 
 interface MailListItemProps {
   mail: MailMessage;
   categories: string[];
-  editingMailId: number | null;
-  onEdit: (mailId: number) => void;
-  onBlur: () => void;
+  isSelected?: boolean;
   onSelect: (mail: MailMessage) => void;
   onDragStart: (e: React.DragEvent, mailId: number, classificationId: number | null) => void;
   onUpdateCategory: (classificationId: number, category: string, mailId: number) => void;
@@ -17,9 +24,7 @@ interface MailListItemProps {
 export function MailListItem({
   mail,
   categories,
-  editingMailId,
-  onEdit,
-  onBlur,
+  isSelected,
   onSelect,
   onDragStart,
   onUpdateCategory,
@@ -27,90 +32,93 @@ export function MailListItem({
   return (
     <div
       draggable
-      onDragStart={(e) => {
-        onDragStart(
-          e,
-          mail.id,
-          mail.classification ? mail.classification.classification_id : null
-        );
-      }}
-      className={`flex items-center gap-3 px-5 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors cursor-grab active:cursor-grabbing ${
-        !mail.is_read
-          ? "font-semibold"
-          : "text-zinc-600 dark:text-zinc-400"
-      }`}
+      onDragStart={(e) =>
+        onDragStart(e, mail.id, mail.classification?.classification_id ?? null)
+      }
+      onClick={() => onSelect(mail)}
+      className={cn(
+        "group flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors border-b last:border-b-0",
+        isSelected
+          ? "bg-accent"
+          : "hover:bg-accent/50",
+        !mail.is_read && "font-medium"
+      )}
     >
       {/* Unread indicator */}
       <span
-        className={`h-2 w-2 shrink-0 rounded-full ${
+        className={cn(
+          "h-2 w-2 shrink-0 rounded-full",
           !mail.is_read ? "bg-blue-500" : "bg-transparent"
-        }`}
+        )}
       />
-      {/* Source badge */}
+
+      {/* Source */}
       <span className="shrink-0">
         <SourceBadge source={mail.source} small />
       </span>
-      {/* Category badge */}
-      <span className="w-20 shrink-0">
-        {mail.classification ? (
-          editingMailId === mail.id ? (
-            <select
-              className="w-full rounded border border-zinc-300 px-1 py-0.5 text-xs dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
-              value={mail.classification.category}
-              onChange={(e) => {
-                onUpdateCategory(
-                  mail.classification!.classification_id,
-                  e.target.value,
-                  mail.id
-                );
-              }}
-              onBlur={onBlur}
-              autoFocus
-            >
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit(mail.id);
-              }}
-              title="클릭하여 분류 수정"
-            >
-              <CategoryBadge
-                category={mail.classification.category}
-                confidence={null}
-                userFeedback={mail.classification.user_feedback}
-                small
-              />
-            </button>
-          )
-        ) : (
-          <span className="text-xs text-zinc-400">-</span>
-        )}
-      </span>
-      {/* Clickable mail content */}
-      <button
-        onClick={() => onSelect(mail)}
-        className="flex flex-1 items-center gap-4 text-left min-w-0"
-      >
+
+      {/* Content */}
+      <div className="flex flex-1 items-center gap-3 min-w-0">
         {/* Sender */}
-        <span className="w-40 truncate text-sm text-black dark:text-white">
+        <span className="w-36 truncate text-sm">
           {mail.from_name || mail.from_email || "(알 수 없음)"}
         </span>
+
         {/* Subject */}
-        <span className="flex-1 truncate text-sm text-black dark:text-white">
+        <span className={cn(
+          "flex-1 truncate text-sm",
+          mail.is_read && "text-muted-foreground"
+        )}>
           {mail.subject || "(제목 없음)"}
         </span>
-        {/* Date */}
-        <span className="shrink-0 text-xs text-zinc-500">
-          {formatDate(mail.received_at)}
-        </span>
-      </button>
+      </div>
+
+      {/* Category badge with dropdown */}
+      <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
+        {mail.classification ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="focus:outline-none" title="클릭하여 분류 수정">
+                <CategoryBadge
+                  category={mail.classification.category}
+                  confidence={null}
+                  userFeedback={mail.classification.user_feedback}
+                  small
+                />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel className="text-xs">분류 변경</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {categories.map((cat) => (
+                <DropdownMenuItem
+                  key={cat}
+                  onClick={() =>
+                    onUpdateCategory(
+                      mail.classification!.classification_id,
+                      cat,
+                      mail.id
+                    )
+                  }
+                  className={cn(
+                    "text-xs",
+                    mail.classification?.category === cat && "font-semibold"
+                  )}
+                >
+                  {cat}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        )}
+      </span>
+
+      {/* Date */}
+      <span className="shrink-0 text-xs text-muted-foreground w-16 text-right">
+        {formatDate(mail.received_at)}
+      </span>
     </div>
   );
 }

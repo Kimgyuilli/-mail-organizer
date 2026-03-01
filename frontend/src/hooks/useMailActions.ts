@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { toast } from "sonner";
 import { apiFetch } from "@/lib/api";
 import type { MailMessage, MailDetail, UserInfo } from "@/types/mail";
 
@@ -52,11 +53,11 @@ export function useMailActions({
       }
       const results = await Promise.all(promises);
       const totalSynced = results.reduce((sum, r) => sum + r.synced, 0);
-      alert(`${totalSynced}개의 새 메일을 동기화했습니다.`);
+      toast.success(`${totalSynced}개의 새 메일을 동기화했습니다.`);
       await loadMessages(0);
       await loadCategoryCounts();
     } catch (err) {
-      alert(`동기화 실패: ${err}`);
+      toast.error(`동기화 실패: ${err}`);
     } finally {
       setSyncing(false);
     }
@@ -71,11 +72,11 @@ export function useMailActions({
         classified: number;
         results: { mail_id: number; category: string }[];
       }>(`/api/classify/mails?user_id=${userId}${sourceParam}`, { method: "POST" });
-      alert(`${result.classified}개의 메일이 분류되었습니다.`);
+      toast.success(`${result.classified}개의 메일이 분류되었습니다.`);
       await loadMessages();
       await loadCategoryCounts();
     } catch (err) {
-      alert(`분류 실패: ${err}`);
+      toast.error(`분류 실패: ${err}`);
     } finally {
       setClassifying(false);
     }
@@ -85,7 +86,7 @@ export function useMailActions({
     if (!userId) return;
     const classifiedMails = messages.filter((m) => m.classification);
     if (classifiedMails.length === 0) {
-      alert("분류된 메일이 없습니다. 먼저 AI 분류를 실행하세요.");
+      toast.warning("분류된 메일이 없습니다. 먼저 AI 분류를 실행하세요.");
       return;
     }
     setApplyingLabels(true);
@@ -99,9 +100,9 @@ export function useMailActions({
           }),
         }
       );
-      alert(`${result.applied}개의 Gmail 라벨이 적용되었습니다.`);
+      toast.success(`${result.applied}개의 Gmail 라벨이 적용되었습니다.`);
     } catch (err) {
-      alert(`라벨 적용 실패: ${err}`);
+      toast.error(`라벨 적용 실패: ${err}`);
     } finally {
       setApplyingLabels(false);
     }
@@ -154,7 +155,7 @@ export function useMailActions({
         await loadCategoryCounts();
         await loadFeedbackStats();
       } catch (err) {
-        alert(`수정 실패: ${err}`);
+        toast.error(`수정 실패: ${err}`);
       }
     },
     [userId, selectedMail, setMessages, loadCategoryCounts, loadFeedbackStats]
@@ -171,7 +172,7 @@ export function useMailActions({
         const detail = await apiFetch<MailDetail>(endpoint);
         setSelectedMail(detail);
       } catch {
-        alert("메일을 불러올 수 없습니다.");
+        toast.error("메일을 불러올 수 없습니다.");
       }
     },
     [userId]

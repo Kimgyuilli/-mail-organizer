@@ -58,3 +58,18 @@
 | 4-9: Frontend 컴포넌트 분리 | frontend-dev | done | 4-7, 4-8 | 인라인 컴포넌트를 components/로 분리 |
 | 4-10: page.tsx 리팩토링 (150줄 목표) | frontend-dev | done | 4-8, 4-9 | 219줄 → 190줄, MailListView 추출 |
 | 4-11: Frontend 회귀 테스트 | frontend-dev | done | 4-10 | 리팩토링 후 UI 동작 검증 |
+
+## Phase 5: UI 디자인 리뉴얼 (shadcn/ui)
+
+| 태스크 | 담당 | 상태 | 의존 | 비고 |
+|--------|------|------|------|------|
+| 5-0: shadcn/ui 초기 셋업 | frontend-dev | done | - | dependencies, CSS vars, Toaster, ui components |
+| 5-1: 3-Panel 레이아웃 | frontend-dev | done | 5-0 | ResizablePanelGroup, Sheet 모바일 사이드바 |
+| 5-2: 공통 UI 컴포넌트 교체 | frontend-dev | done | 5-1 | Button, Badge, Input, Dialog, DropdownMenu, Skeleton |
+| 5-3: 토스트 알림 시스템 | frontend-dev | done | 5-1 | alert() → sonner toast() 전환 |
+| 5-4: AppHeader 리디자인 | frontend-dev | done | 5-2 | DropdownMenu 유저 메뉴, 세그먼트 필터 |
+| 5-5: MailListItem 리디자인 | frontend-dev | done | 5-2 | DropdownMenu 카테고리 수정, hover 하이라이트 |
+| 5-6: MailDetailView 리디자인 | frontend-dev | done | 5-2 | 인라인 패널, DropdownMenu 분류 변경 |
+| 5-7: CategorySidebar 리디자인 | frontend-dev | done | 5-2 | lucide icons, Badge counts, Separator |
+| 5-8: 반응형 + 다크모드 | frontend-dev | done | 5-1~5-7 | Sheet 모바일 사이드바, CSS 변수 통합 |
+| 5-9: 테스트 업데이트 | frontend-dev | done | 5-8 | 35 tests pass, lint pass, build pass |

@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { toast } from "sonner";
 import { apiFetch } from "@/lib/api";
 import type { UserInfo } from "@/types/mail";
 
@@ -29,7 +30,7 @@ export function useNaverConnect({
           naver_app_password: naverPassword,
         }),
       });
-      alert("네이버 메일이 연결되었습니다.");
+      toast.success("네이버 메일이 연결되었습니다.");
       setShowNaverConnect(false);
       setNaverEmail("");
       setNaverPassword("");
@@ -37,7 +38,7 @@ export function useNaverConnect({
       setUserInfo(updatedInfo);
       await loadCategoryCounts();
     } catch (err) {
-      alert(`네이버 연결 실패: ${err}`);
+      toast.error(`네이버 연결 실패: ${err}`);
     } finally {
       setConnectingNaver(false);
     }

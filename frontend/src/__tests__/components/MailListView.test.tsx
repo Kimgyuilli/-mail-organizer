@@ -6,11 +6,9 @@ import { MailMessage } from "@/types/mail";
 describe("MailListView", () => {
   const mockProps = {
     categories: ["업무", "개인", "광고"],
-    editingMailId: null,
+    selectedMailId: null,
     currentPage: 1,
     totalPages: 1,
-    onEditMail: vi.fn(),
-    onEditBlur: vi.fn(),
     onSelectMail: vi.fn(),
     onDragStart: vi.fn(),
     onUpdateCategory: vi.fn(),
@@ -18,8 +16,8 @@ describe("MailListView", () => {
     onNextPage: vi.fn(),
   };
 
-  it("displays loading message when loading is true", () => {
-    render(
+  it("displays skeleton loading when loading is true", () => {
+    const { container } = render(
       <MailListView
         {...mockProps}
         loading={true}
@@ -29,7 +27,9 @@ describe("MailListView", () => {
       />
     );
 
-    expect(screen.getByText("로딩 중...")).toBeInTheDocument();
+    // Skeleton loading uses animate-pulse divs
+    const skeletons = container.querySelectorAll(".animate-pulse");
+    expect(skeletons.length).toBeGreaterThan(0);
   });
 
   it("displays empty message when messages array is empty", () => {
@@ -44,7 +44,6 @@ describe("MailListView", () => {
     );
 
     expect(screen.getByText("메일이 없습니다.")).toBeInTheDocument();
-    expect(screen.getByText(/"메일 동기화" 버튼을 눌러 Gmail에서 메일을 가져오세요./i)).toBeInTheDocument();
   });
 
   it("displays total count and classified count when messages exist", () => {
@@ -92,8 +91,8 @@ describe("MailListView", () => {
       />
     );
 
-    expect(screen.getByText("총 10개의 메일")).toBeInTheDocument();
-    expect(screen.getByText("분류됨: 1/2")).toBeInTheDocument();
+    expect(screen.getByText("총 10개")).toBeInTheDocument();
+    expect(screen.getByText("분류됨 1/2")).toBeInTheDocument();
   });
 
   it("renders messages when messages array is not empty", () => {
@@ -128,7 +127,6 @@ describe("MailListView", () => {
       />
     );
 
-    // Check that mail content is rendered (subject or sender)
     expect(screen.getByText("Test Subject")).toBeInTheDocument();
   });
 

@@ -14,6 +14,13 @@ import { AppHeader } from "@/components/AppHeader";
 import { NaverConnectModal } from "@/components/NaverConnectModal";
 import { CategorySidebar } from "@/components/CategorySidebar";
 import { MailListView } from "@/components/MailListView";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const LIMIT = 20;
 
@@ -22,6 +29,7 @@ export default function Home() {
   const [sourceFilter, setSourceFilter] = useState<"all" | "gmail" | "naver">("all");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [showSenderRules, setShowSenderRules] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const { messages, setMessages, total, setTotal, offset, setOffset, loading, loadMessages } =
     useMessages({ userId, sourceFilter, categoryFilter, limit: LIMIT });
@@ -35,8 +43,6 @@ export default function Home() {
     applyingLabels,
     selectedMail,
     setSelectedMail,
-    editingMailId,
-    setEditingMailId,
     handleSync,
     handleClassify,
     handleApplyLabels,
@@ -100,35 +106,43 @@ export default function Home() {
     e.dataTransfer.effectAllowed = "move";
   };
 
-  // Wait for client-side hydration before rendering auth-dependent UI
+  // Wait for client-side hydration
   if (!hydrated) {
-    return <div className="min-h-screen bg-zinc-50 dark:bg-black" />;
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Skeleton className="h-8 w-48" />
+      </div>
+    );
   }
 
-  // Not logged in
   if (!userId) {
     return <LoginScreen onLogin={handleLogin} />;
   }
 
-  // Mail detail view
-  if (selectedMail) {
-    return (
-      <MailDetailView
-        mail={selectedMail}
-        categories={categories}
-        onBack={() => setSelectedMail(null)}
-        onUpdateCategory={handleUpdateCategory}
-      />
-    );
-  }
-
-  // Mail list view
   const totalPages = Math.ceil(total / LIMIT);
   const currentPage = Math.floor(offset / LIMIT) + 1;
   const classifiedCount = messages.filter((m) => m.classification).length;
 
+  const sidebarContent = (
+    <CategorySidebar
+      categoryCounts={categoryCounts}
+      categoryFilter={categoryFilter}
+      feedbackStats={feedbackStats}
+      showSenderRules={showSenderRules}
+      dragOverCategory={dragOverCategory}
+      onCategoryFilter={(cat) => {
+        handleCategoryFilter(cat);
+        setMobileMenuOpen(false);
+      }}
+      onToggleSenderRules={() => setShowSenderRules(!showSenderRules)}
+      onDragOver={(cat) => setDragOverCategory(cat)}
+      onDragLeave={() => setDragOverCategory(null)}
+      onDrop={handleDrop}
+    />
+  );
+
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black">
+    <div className="flex h-screen flex-col bg-background">
       <AppHeader
         userInfo={userInfo}
         sourceFilter={sourceFilter}
@@ -142,53 +156,82 @@ export default function Home() {
         onLogout={onLogout}
         onNaverConnect={() => setShowNaverConnect(true)}
         onSourceFilterChange={handleSourceFilterChange}
+        onMobileMenuToggle={() => setMobileMenuOpen(true)}
       />
 
-      {showNaverConnect && (
-        <NaverConnectModal
-          naverEmail={naverEmail}
-          naverPassword={naverPassword}
-          connecting={connectingNaver}
-          onEmailChange={setNaverEmail}
-          onPasswordChange={setNaverPassword}
-          onConnect={handleConnectNaver}
-          onClose={closeNaverConnect}
-        />
-      )}
+      {/* Mobile sidebar sheet */}
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent side="left" className="w-64 p-0">
+          <SheetTitle className="sr-only">카테고리 메뉴</SheetTitle>
+          {sidebarContent}
+        </SheetContent>
+      </Sheet>
 
-      <div className="mx-auto max-w-6xl px-6 py-6 flex gap-6">
-        <CategorySidebar
-          categoryCounts={categoryCounts}
-          categoryFilter={categoryFilter}
-          feedbackStats={feedbackStats}
-          showSenderRules={showSenderRules}
-          dragOverCategory={dragOverCategory}
-          onCategoryFilter={handleCategoryFilter}
-          onToggleSenderRules={() => setShowSenderRules(!showSenderRules)}
-          onDragOver={(cat) => setDragOverCategory(cat)}
-          onDragLeave={() => setDragOverCategory(null)}
-          onDrop={handleDrop}
-        />
+      <NaverConnectModal
+        open={showNaverConnect}
+        naverEmail={naverEmail}
+        naverPassword={naverPassword}
+        connecting={connectingNaver}
+        onEmailChange={setNaverEmail}
+        onPasswordChange={setNaverPassword}
+        onConnect={handleConnectNaver}
+        onClose={closeNaverConnect}
+      />
 
-        <main className="flex-1 min-w-0">
-          <MailListView
-            loading={loading}
-            messages={messages}
-            total={total}
-            categories={categories}
-            editingMailId={editingMailId}
-            classifiedCount={classifiedCount}
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onEditMail={setEditingMailId}
-            onEditBlur={() => setEditingMailId(null)}
-            onSelectMail={handleSelectMail}
-            onDragStart={handleDragStart}
-            onUpdateCategory={handleUpdateCategory}
-            onPrevPage={() => setOffset(Math.max(0, offset - LIMIT))}
-            onNextPage={() => setOffset(offset + LIMIT)}
-          />
-        </main>
+      {/* 3-panel layout */}
+      <div className="flex-1 overflow-hidden">
+        <ResizablePanelGroup orientation="horizontal">
+          {/* Sidebar panel - hidden on mobile */}
+          <ResizablePanel
+            defaultSize={18}
+            minSize={14}
+            maxSize={25}
+            className="hidden md:block"
+          >
+            <div className="h-full overflow-auto border-r">
+              {sidebarContent}
+            </div>
+          </ResizablePanel>
+
+          <ResizableHandle className="hidden md:flex" />
+
+          {/* Mail list panel */}
+          <ResizablePanel
+            defaultSize={selectedMail ? 38 : 82}
+            minSize={30}
+          >
+            <MailListView
+              loading={loading}
+              messages={messages}
+              total={total}
+              categories={categories}
+              selectedMailId={selectedMail?.id ?? null}
+              classifiedCount={classifiedCount}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onSelectMail={handleSelectMail}
+              onDragStart={handleDragStart}
+              onUpdateCategory={handleUpdateCategory}
+              onPrevPage={() => setOffset(Math.max(0, offset - LIMIT))}
+              onNextPage={() => setOffset(offset + LIMIT)}
+            />
+          </ResizablePanel>
+
+          {/* Detail panel - shown when mail selected */}
+          {selectedMail && (
+            <>
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={44} minSize={30}>
+                <MailDetailView
+                  mail={selectedMail}
+                  categories={categories}
+                  onBack={() => setSelectedMail(null)}
+                  onUpdateCategory={handleUpdateCategory}
+                />
+              </ResizablePanel>
+            </>
+          )}
+        </ResizablePanelGroup>
       </div>
     </div>
   );
