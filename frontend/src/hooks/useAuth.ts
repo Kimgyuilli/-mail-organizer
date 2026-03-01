@@ -2,30 +2,25 @@ import { useEffect, useState, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
 import type { UserInfo } from "@/types/mail";
 
-function getInitialUserId(): number | null {
-  if (typeof window === "undefined") return null;
-  // OAuth callback takes priority
-  const params = new URLSearchParams(window.location.search);
-  const uid = params.get("user_id");
-  if (uid) {
-    localStorage.setItem("user_id", uid);
-    return Number(uid);
-  }
-  const stored = localStorage.getItem("user_id");
-  return stored ? Number(stored) : null;
-}
-
 export function useAuth() {
-  const [userId, setUserId] = useState<number | null>(getInitialUserId);
+  const [userId, setUserId] = useState<number | null>(null);
+  const [hydrated, setHydrated] = useState(false);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
 
-  // Clean up URL after OAuth callback
+  // Read localStorage after hydration to avoid SSR mismatch
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("user_id")) {
+    const uid = params.get("user_id");
+    if (uid) {
+      localStorage.setItem("user_id", uid);
+      setUserId(Number(uid));
       window.history.replaceState({}, "", "/");
+    } else {
+      const stored = localStorage.getItem("user_id");
+      if (stored) setUserId(Number(stored));
     }
+    setHydrated(true);
   }, []);
 
   // Load user info + categories
@@ -55,6 +50,7 @@ export function useAuth() {
 
   return {
     userId,
+    hydrated,
     userInfo,
     setUserInfo,
     categories,

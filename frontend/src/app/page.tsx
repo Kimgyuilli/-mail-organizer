@@ -18,7 +18,7 @@ import { MailListView } from "@/components/MailListView";
 const LIMIT = 20;
 
 export default function Home() {
-  const { userId, userInfo, setUserInfo, categories, handleLogin, handleLogout } = useAuth();
+  const { userId, hydrated, userInfo, setUserInfo, categories, handleLogin, handleLogout } = useAuth();
   const [sourceFilter, setSourceFilter] = useState<"all" | "gmail" | "naver">("all");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [showSenderRules, setShowSenderRules] = useState(false);
@@ -99,6 +99,11 @@ export default function Home() {
     e.dataTransfer.setData("classificationId", classificationId ? String(classificationId) : "");
     e.dataTransfer.effectAllowed = "move";
   };
+
+  // Wait for client-side hydration before rendering auth-dependent UI
+  if (!hydrated) {
+    return <div className="min-h-screen bg-zinc-50 dark:bg-black" />;
+  }
 
   // Not logged in
   if (!userId) {
