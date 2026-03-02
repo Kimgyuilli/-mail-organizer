@@ -34,6 +34,9 @@ timeout-minutes: 10
 
 source: githubnext/agentics/workflows/ci-doctor.md@da02dddebe71d9a937665abdcd1f5214dab852a7
 engine: copilot
+
+env:
+  GH_AW_MODEL_AGENT_COPILOT: gpt-4.1
 ---
 
 # CI Failure Doctor

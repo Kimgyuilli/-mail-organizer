@@ -28,7 +28,7 @@
 #
 # Source: githubnext/agentics/workflows/ci-doctor.md@da02dddebe71d9a937665abdcd1f5214dab852a7
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"974f2784ebad15b80c9915eab23a4cca609d08f84bac771a46993b896083a17b","compiler_version":"v0.51.5"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"15e4173b6214aa37d55791e63ed1100d18527bba7759feed0662834b1937b08d","compiler_version":"v0.51.5"}
 
 name: "CI Failure Doctor"
 "on":
@@ -47,6 +47,9 @@ concurrency:
   group: "gh-aw-${{ github.workflow }}"
 
 run-name: "CI Failure Doctor"
+
+env:
+  GH_AW_MODEL_AGENT_COPILOT: gpt-4.1
 
 jobs:
   activation:

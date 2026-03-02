@@ -29,7 +29,7 @@
 #
 # Source: githubnext/agentics/workflows/pr-fix.md@da02dddebe71d9a937665abdcd1f5214dab852a7
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"0ac08f84ba4521cd0142d591bf5a84a6bacaad55eab3ddde8bc610f2b1b8e2f4","compiler_version":"v0.51.5"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"b60ab50f9543c792d00ae4f4112f210192f284261ce7d396b752cd4b7fef7d52","compiler_version":"v0.51.5"}
 
 name: "PR Fix"
 "on":
@@ -66,6 +66,9 @@ concurrency:
   group: "gh-aw-${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}"
 
 run-name: "PR Fix"
+
+env:
+  GH_AW_MODEL_AGENT_COPILOT: gpt-4.1
 
 jobs:
   activation:
