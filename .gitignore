@@ -31,3 +31,10 @@ credentials.json
 
 # Production env
 .env.production
+
+# Terraform
+infra/
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
