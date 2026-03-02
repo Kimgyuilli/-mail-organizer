@@ -178,6 +178,10 @@ When creating an investigation issue, use this structure:
 [Similar past failures and patterns]
 ```
 
+## Language
+
+- **All output MUST be written in Korean (한국어)**: issue titles, summaries, analysis, recommendations, comments — everything user-facing must be in Korean.
+
 ## Important Guidelines
 
 - **Be Thorough**: Don't just report the error - investigate the underlying cause
