@@ -53,7 +53,7 @@ export function CategorySidebar({
             <Inbox className="h-4 w-4 text-muted-foreground" />
             전체
           </span>
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 min-w-[1.5rem] justify-center">
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 min-w-6 justify-center">
             {categoryCounts?.total || 0}
           </Badge>
         </button>
@@ -89,7 +89,7 @@ export function CategorySidebar({
               />
               {cat.name}
             </span>
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 min-w-[1.5rem] justify-center">
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 min-w-6 justify-center">
               {cat.count}
             </Badge>
           </button>
@@ -109,7 +109,7 @@ export function CategorySidebar({
             <span className="w-2 h-2 rounded-full bg-muted-foreground/40" />
             미분류
           </span>
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 min-w-[1.5rem] justify-center">
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 min-w-6 justify-center">
             {categoryCounts?.unclassified || 0}
           </Badge>
         </button>
