@@ -2,6 +2,40 @@
 
 > v1 (Phase 0~5) 기록 아카이브: [PROGRESS_V1.md](./PROGRESS_V1.md)
 
+## 2026-03-02 — agent (CI/CD 파이프라인 구축)
+### 완료한 작업
+- `.github/workflows/ci.yml`: CI 파이프라인 (backend-lint, backend-test, frontend-lint, frontend-test, frontend-build)
+- `.github/workflows/deploy.yml`: CD 파이프라인 (CI 성공 + main push → SSH로 Oracle VM 자동 배포)
+- `.github/workflows/copilot-setup-steps.yml`: gh-aw 환경 설정
+- `.github/workflows/ci-doctor.md`: CI 실패 시 AI가 로그 분석 + 이슈 자동 생성
+- `.github/workflows/pr-fix.md`: PR에 `/pr-fix` 코멘트 시 AI가 코드 수정 + 푸시
+- `.gitattributes`: lock.yml 파일 linguist-generated 설정
+### 다음 할 일
+- GitHub Secrets 설정: `ORACLE_SSH_KEY`, `ORACLE_HOST` (138.2.116.61), `ORACLE_USERNAME` (ubuntu)
+- 테스트 브랜치에서 PR 생성하여 CI 동작 검증
+- main 머지 후 CD 자동 배포 검증
+### 이슈/참고
+- gh-aw ci-doctor는 "CI" 워크플로우 실패만 모니터링하도록 설정
+- pnpm/action-setup@v4에 `version: 9` 명시 (packageManager 필드 미설정 대응)
+- ci-doctor, pr-fix는 GitHub Copilot 엔진 사용
+
+## 2026-03-02 — Oracle Cloud 배포 완료
+### 완료한 작업
+- Oracle VM 프로비저닝 성공 (A1.Flex, 춘천 리전)
+- Reserved Public IP 적용: `138.2.116.61`
+- DNS 설정: `gtool.kro.kr` → `138.2.116.61`
+- Docker + Docker Compose 설치
+- OS 방화벽 (iptables) + OCI Security List에 80/443 포트 오픈
+- `git clone` → 환경변수 설정 → `docker compose up -d --build`
+- Caddy Let's Encrypt HTTPS 인증서 자동 발급 완료
+- `https://gtool.kro.kr` 접속 확인
+### 다음 할 일
+- Google OAuth redirect URI 추가 (`https://gtool.kro.kr/api/auth/callback`)
+- CI/CD 파이프라인 구축 (GitHub Actions)
+### 이슈/참고
+- OCI Security List에 80/443 Ingress Rule 누락으로 ACME challenge 실패 → 추가 후 해결
+- Keep-alive crontab 설정 권장 (OCI idle VM 회수 방지)
+
 ## 2026-03-02 — backend-dev (Oracle Cloud 인프라 셋업)
 ### 완료한 작업
 - OCI API Key 생성 + `~/.oci/config` 설정 완료
