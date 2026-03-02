@@ -70,7 +70,7 @@ describe("CategoryBadge", () => {
     expect(screen.queryByTitle("수동 수정됨")).not.toBeInTheDocument();
   });
 
-  it("does not display confidence in small mode", () => {
+  it("displays confidence in small mode", () => {
     render(
       <CategoryBadge
         category="업무"
@@ -81,6 +81,6 @@ describe("CategoryBadge", () => {
     );
 
     expect(screen.getByText("업무")).toBeInTheDocument();
-    expect(screen.queryByText("90%")).not.toBeInTheDocument();
+    expect(screen.getByText("90%")).toBeInTheDocument();
   });
 });
