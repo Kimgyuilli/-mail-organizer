@@ -28,6 +28,12 @@ disable-model-invocation: true
 - 구현 순서
 - 사용자에게 계획을 보여주고 승인 받기
 
+### Step 4.5: 브랜치 생성
+- 구현 계획 승인 후, `/branch` 스킬로 feature 브랜치 + worktree를 생성한다.
+- 브랜치명은 태스크 성격에 맞게 결정한다 (예: `feat/gmail-batch-sync`).
+- 이후 모든 작업은 생성된 worktree 경로에서 진행한다.
+- 이미 해당 태스크용 브랜치가 있으면 (PLAN.md 비고란 확인) 기존 worktree를 사용한다.
+
 ### Step 5: 구현
 - `PLAN.md` 상태를 `in-progress`로 변경
 - 태스크 성격에 따라 적절한 에이전트에게 위임:
@@ -40,14 +46,17 @@ disable-model-invocation: true
 - 구현 완료 후 **reviewer** 에이전트에게 코드 리뷰를 위임한다.
 - Critical 이슈가 있으면 수정 후 재리뷰한다.
 
-### Step 7: 기록
+### Step 7: 기록 + PR
 - **planner** 에이전트를 사용하여:
   - `PLAN.md` 상태를 `done`으로 변경
   - `PROGRESS.md`에 완료 기록 추가
   - 새로 unblock된 태스크 확인
+- 변경 사항을 커밋하고 push한다.
+- `/pr` 스킬로 PR을 생성한다.
 
 ### Step 8: 요약
 - 구현 내용 요약 출력
+- PR URL 포함
 - 다음 추천 태스크 안내
 
 ## 병렬 실행 예시
@@ -55,7 +64,9 @@ disable-model-invocation: true
 태스크가 백엔드 API + 프론트엔드 UI를 동시에 필요로 할 때:
 ```
 1. researcher → 관련 API 조사 (레퍼런스 없을 때)
-2. backend-dev + frontend-dev → 병렬 구현
-3. reviewer → 전체 코드 리뷰
-4. planner → PLAN.md/PROGRESS.md 업데이트
+2. /branch → feature 브랜치 + worktree 생성
+3. backend-dev + frontend-dev → 병렬 구현
+4. reviewer → 전체 코드 리뷰
+5. 커밋 + push + /pr → PR 생성
+6. planner → PLAN.md/PROGRESS.md 업데이트
 ```

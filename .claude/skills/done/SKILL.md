@@ -4,7 +4,7 @@ description: 태스크를 완료 처리하고 PLAN.md, PROGRESS.md를 업데이�
 argument-hint: [태스크명]
 user-invocable: true
 disable-model-invocation: true
-allowed-tools: Read, Edit
+allowed-tools: Bash, Read, Edit
 ---
 
 "$ARGUMENTS" 태스크를 완료 처리한다.
@@ -27,3 +27,12 @@ allowed-tools: Read, Edit
    ```
 
 4. 완료로 인해 unblock된 다른 태스크가 있으면 알려준다.
+
+5. **Git 브랜치 처리**: 현재 브랜치를 확인한다.
+   - **main이 아닌 브랜치에서 작업 중이면**:
+     1. `git add`로 변경 파일을 스테이징한다.
+     2. `git commit`으로 커밋한다 (Conventional Commits 형식).
+     3. `git push -u origin <브랜치명>`으로 push한다.
+     4. 열린 PR이 없으면 사용자에게 PR 생성 여부를 확인한다.
+        - 승인하면 `/pr` 스킬과 동일한 절차로 PR을 생성한다.
+   - **main 브랜치이면**: 커밋/push 없이 기존 로직 그대로 종료한다.

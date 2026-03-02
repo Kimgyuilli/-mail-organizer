@@ -55,6 +55,8 @@ Gmail과 네이버 메일을 통합 관리하고, AI 기반으로 자동 분류�
 | `/test` | 테스트 실행 + 결과 요약 | `/test backend` 또는 `/test all` |
 | `/setup-check` | 개발 환경 점검 | `/setup-check` |
 | `/implement-task` | 태스크 풀 워크플로우 | `/implement-task Gmail API 연동` |
+| `/branch` | feature 브랜치 + worktree 생성 | `/branch feat/gmail-batch-sync` |
+| `/pr` | PR 생성 | `/pr` |
 | `/ref` | 레퍼런스 검색/조회 | `/ref gmail oauth`, `/ref --tag api`, `/ref --list` |
 | `/save-ref` | 조사 결과를 레퍼런스로 저장 | `/save-ref api-gmail Gmail API 조사 결과` |
 
@@ -85,6 +87,26 @@ frontend-dev(UI 컴포넌트) ────┘
 # 패턴 3: 풀 파이프라인 (/implement-task)
 planner(계획) → researcher(조사) → backend-dev + frontend-dev(구현) → reviewer(리뷰) → planner(기록)
 ```
+
+## Git 워크플로우 (GitHub Flow + Worktree)
+
+- **main** 브랜치는 항상 배포 가능한 상태를 유지한다.
+- 모든 작업은 feature 브랜치에서 진행하고 PR로 병합한다.
+- git worktree를 사용하여 브랜치별 독립 디렉토리에서 작업한다.
+- worktree 기본 경로: `C:/Users/rlarb/coding/.worktrees/`
+
+### 브랜치 네이밍
+- `feat/<설명>` — 새 기능
+- `fix/<설명>` — 버그 수정
+- `refactor/<설명>` — 리팩토링
+- `docs/<설명>` — 문서
+
+### 작업 플로우
+1. `/branch feat/기능명` → 브랜치 + worktree 생성
+2. worktree 디렉토리에서 작업
+3. 커밋 + push
+4. `/pr` → PR 생성
+5. 리뷰 후 main에 병합
 
 ## 프로젝트 목표
 
