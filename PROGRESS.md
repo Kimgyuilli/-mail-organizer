@@ -2,6 +2,27 @@
 
 > v1 (Phase 0~5) 기록 아카이브: [PROGRESS_V1.md](./PROGRESS_V1.md)
 
+## 2026-03-02 — backend-dev (Oracle Cloud 인프라 셋업)
+### 완료한 작업
+- OCI API Key 생성 + `~/.oci/config` 설정 완료
+- Terraform 설정 파일 작성 (`infra/main.tf`) — A1.Flex, 2 OCPU, 12GB
+- `terraform init` + `terraform plan` 성공 확인
+- SSH 키 생성 (`~/.ssh/oracle_cloud`)
+- 도메인 확보: `gtool.kro.kr`
+- DEPLOY.md 배포 가이드 작성
+- OCI Compartment `g-tool` 생성, VCN + Security List 설정 완료
+### 다음 할 일
+- `terraform apply` 재시도 (춘천 리전 ARM capacity 부족으로 blocked)
+  - 새벽 시간대(KST 2~6시) 시도 권장
+  - 명령어: `cd infra && terraform apply -auto-approve`
+- VM 생성 성공 후 → DEPLOY.md Step 3(Docker 설치)부터 진행
+- DNS A 레코드에 VM Public IP 연결 (`gtool.kro.kr`)
+- Google OAuth redirect URI 추가: `https://gtool.kro.kr/api/auth/callback`
+### 이슈/참고
+- OCI 춘천 리전 ARM(A1.Flex) capacity 부족 — "Out of host capacity" 에러
+- Terraform, OCI API 인증은 모두 정상 동작 확인됨
+- `infra/` 디렉토리는 .gitignore 처리 (OCID 등 민감정보 포함)
+
 ## 2026-03-02 — backend-dev (Oracle Cloud 배포 코드 작업)
 ### 완료한 작업
 - `backend/app/config.py`: `frontend_url` 설정 추가

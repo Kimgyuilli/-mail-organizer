@@ -12,4 +12,4 @@
 | Frontend Dockerfile 작성 | frontend-dev | done | — | Multi-stage, standalone |
 | Docker Compose + Caddy 설정 | backend-dev | done | — | 리버스 프록시 + 자동 HTTPS |
 | .dockerignore + env 템플릿 | backend-dev | done | — | |
-| Oracle VM 프로비저닝 + 배포 | — | pending | 위 전체 | 서버 셋업은 별도 |
+| Oracle VM 프로비저닝 + 배포 | — | blocked | 위 전체 | ARM capacity 부족, 재시도 필요 |
