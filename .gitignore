@@ -28,3 +28,6 @@ Thumbs.db
 # OAuth tokens
 token.json
 credentials.json
+
+# Production env
+.env.production

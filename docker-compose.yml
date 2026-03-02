@@ -1,0 +1,47 @@
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      - FRONTEND_URL=https://${DOMAIN}
+      - GOOGLE_REDIRECT_URI=https://${DOMAIN}/api/auth/callback
+      - DATABASE_URL=sqlite+aiosqlite:///./data/mail_organizer.db
+    volumes:
+      - db-data:/app/data
+    command: >
+      uv run uvicorn app.main:app
+      --host 0.0.0.0 --port 8000
+    expose:
+      - "8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: https://${DOMAIN}/api
+    restart: unless-stopped
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      - DOMAIN=${DOMAIN}
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:

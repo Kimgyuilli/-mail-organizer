@@ -5,6 +5,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.dependencies import get_current_user
 from app.models import User, get_db
 from app.services.google_auth import (
@@ -55,8 +56,8 @@ async def callback(
     await db.refresh(user)
 
     # Redirect to frontend with user_id
-    frontend_url = f"http://localhost:3000?user_id={user.id}"
-    return RedirectResponse(url=frontend_url)
+    redirect_url = f"{settings.frontend_url}?user_id={user.id}"
+    return RedirectResponse(url=redirect_url)
 
 
 @router.get("/me")

@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite+aiosqlite:///./mail_organizer.db"
 
+    # Frontend
+    frontend_url: str = "http://localhost:3000"
+
     # Background Scheduler
     sync_interval_minutes: int = 15
     auto_classify: bool = True
