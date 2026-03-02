@@ -81,7 +81,7 @@ export function MailListItem({
               <button className="focus:outline-none" title="클릭하여 분류 수정">
                 <CategoryBadge
                   category={mail.classification.category}
-                  confidence={null}
+                  confidence={mail.classification.confidence}
                   userFeedback={mail.classification.user_feedback}
                   small
                 />

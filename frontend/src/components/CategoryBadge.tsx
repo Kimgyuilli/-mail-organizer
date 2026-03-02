@@ -26,8 +26,8 @@ export function CategoryBadge({
         </span>
       )}
       {category}
-      {confidence !== null && !small && (
-        <span className="opacity-60 ml-1">
+      {confidence !== null && (
+        <span className={`opacity-60 ${small ? "ml-0.5" : "ml-1"}`}>
           {Math.round(confidence * 100)}%
         </span>
       )}
