@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { X, ChevronDown } from "lucide-react";
+import { HtmlEmailRenderer } from "@/components/HtmlEmailRenderer";
 
 interface MailDetailViewProps {
   mail: MailDetail;
@@ -94,9 +95,13 @@ export function MailDetailView({
 
       {/* Body */}
       <div className="flex-1 overflow-auto px-6 py-4">
-        <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans">
-          {mail.body_text || "(본문 없음)"}
-        </pre>
+        {mail.body_html ? (
+          <HtmlEmailRenderer html={mail.body_html} />
+        ) : (
+          <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans">
+            {mail.body_text || "(본문 없음)"}
+          </pre>
+        )}
       </div>
     </div>
   );

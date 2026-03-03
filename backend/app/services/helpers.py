@@ -134,6 +134,7 @@ def format_mail_response(
         "from_name": mail.from_name,
         "subject": mail.subject,
         "body_text": mail.body_text,
+        "body_html": mail.body_html,
         "received_at": (
             mail.received_at.isoformat() if mail.received_at else None
         ),

@@ -238,7 +238,7 @@ def _parse_email(
 
     subject = _decode_header_value(msg.get("Subject", ""))
 
-    body_text = _extract_body(msg)
+    body = _extract_body(msg)
 
     date_header = msg.get("Date", "")
     received_at = _parse_date(date_header)
@@ -249,7 +249,8 @@ def _parse_email(
         "from_name": from_name,
         "to_email": to_email_addr,
         "subject": subject,
-        "body_text": body_text,
+        "body_text": body["text"],
+        "body_html": body["html"],
         "received_at": received_at,
         "is_read": False,
         "folder": "INBOX",
@@ -281,37 +282,43 @@ def _decode_header_addr(
     return name, addr
 
 
-def _extract_body(msg: email.message.Message) -> str:
-    """Extract plain text body from email message."""
+def _extract_body(msg: email.message.Message) -> dict[str, str | None]:
+    """Extract text and HTML body from email message.
+
+    Returns dict with 'text' (plain text) and 'html' (raw HTML or None).
+    """
     if not msg.is_multipart():
         content_type = msg.get_content_type()
         payload = msg.get_payload(decode=True)
         if payload is None:
-            return ""
+            return {"text": "", "html": None}
         charset = msg.get_content_charset() or "utf-8"
-        text = payload.decode(charset, errors="replace")
+        decoded = payload.decode(charset, errors="replace")
         if content_type == "text/html":
-            return _strip_html(text)
-        return text
+            return {"text": _strip_html(decoded), "html": decoded}
+        return {"text": decoded, "html": None}
 
-    # Multipart: prefer text/plain, fallback to text/html
-    for preferred in ("text/plain", "text/html"):
-        for part in msg.walk():
-            if part.get_content_type() == preferred:
-                payload = part.get_payload(decode=True)
-                if payload is None:
-                    continue
-                charset = (
-                    part.get_content_charset() or "utf-8"
-                )
-                text = payload.decode(
-                    charset, errors="replace"
-                )
-                if preferred == "text/html":
-                    return _strip_html(text)
-                return text
+    # Multipart: collect both text/plain and text/html
+    text_plain: str | None = None
+    text_html: str | None = None
 
-    return ""
+    for part in msg.walk():
+        ct = part.get_content_type()
+        if ct == "text/plain" and text_plain is None:
+            payload = part.get_payload(decode=True)
+            if payload is not None:
+                charset = part.get_content_charset() or "utf-8"
+                text_plain = payload.decode(charset, errors="replace")
+        elif ct == "text/html" and text_html is None:
+            payload = part.get_payload(decode=True)
+            if payload is not None:
+                charset = part.get_content_charset() or "utf-8"
+                text_html = payload.decode(charset, errors="replace")
+
+    plain = text_plain or (
+        _strip_html(text_html) if text_html else ""
+    )
+    return {"text": plain, "html": text_html}
 
 
 def _strip_html(html: str) -> str:
@@ -404,6 +411,7 @@ async def sync_naver_messages(
             to_email=msg["to_email"],
             subject=msg["subject"],
             body_text=msg["body_text"],
+            body_html=msg["body_html"],
             folder=msg["folder"],
             received_at=msg["received_at"],
             is_read=msg["is_read"],
