@@ -201,7 +201,7 @@ def _parse_message(raw: dict) -> dict[str, Any]:
 
     subject = headers.get("subject", "")
 
-    body_text = _extract_body(raw.get("payload", {}))
+    body = _extract_body(raw.get("payload", {}))
 
     internal_date_ms = int(raw.get("internalDate", "0"))
     received_at = datetime.fromtimestamp(
@@ -216,7 +216,8 @@ def _parse_message(raw: dict) -> dict[str, Any]:
         "from_email": from_email,
         "from_name": from_name,
         "subject": subject,
-        "body_text": body_text,
+        "body_text": body["text"],
+        "body_html": body["html"],
         "received_at": received_at,
         "is_read": is_read,
     }
@@ -228,37 +229,51 @@ def _parse_from(from_header: str) -> tuple[str, str]:
     return name, addr
 
 
-def _extract_body(payload: dict) -> str:
-    """Extract plain text body from Gmail payload.
+def _extract_body(payload: dict) -> dict[str, str | None]:
+    """Extract text and HTML body from Gmail payload.
 
     Handles both simple and multipart MIME structures.
+    Returns dict with 'text' (plain text) and 'html' (raw HTML or None).
     """
     mime_type = payload.get("mimeType", "")
 
     if mime_type == "text/plain":
         data = payload.get("body", {}).get("data", "")
-        return _decode_base64url(data)
+        return {"text": _decode_base64url(data), "html": None}
+
+    if mime_type == "text/html":
+        data = payload.get("body", {}).get("data", "")
+        html = _decode_base64url(data)
+        return {"text": _strip_html(html), "html": html}
 
     parts = payload.get("parts", [])
 
-    # Try text/plain first, then text/html
-    for preferred in ("text/plain", "text/html"):
-        for part in parts:
-            if part.get("mimeType") == preferred:
-                data = part.get("body", {}).get("data", "")
-                text = _decode_base64url(data)
-                if preferred == "text/html":
-                    return _strip_html(text)
-                return text
+    text_plain: str | None = None
+    text_html: str | None = None
+
+    for part in parts:
+        part_mime = part.get("mimeType", "")
+        if part_mime == "text/plain" and text_plain is None:
+            data = part.get("body", {}).get("data", "")
+            text_plain = _decode_base64url(data)
+        elif part_mime == "text/html" and text_html is None:
+            data = part.get("body", {}).get("data", "")
+            text_html = _decode_base64url(data)
+
+    if text_plain is not None or text_html is not None:
+        plain = text_plain or (
+            _strip_html(text_html) if text_html else ""
+        )
+        return {"text": plain, "html": text_html}
 
     # Recurse into nested multipart
     for part in parts:
         if part.get("mimeType", "").startswith("multipart/"):
             result = _extract_body(part)
-            if result:
+            if result["text"] or result["html"]:
                 return result
 
-    return ""
+    return {"text": "", "html": None}
 
 
 def _decode_base64url(data: str) -> str:
@@ -395,6 +410,7 @@ async def sync_all_gmail_messages(
                     from_name=detail["from_name"],
                     subject=detail["subject"],
                     body_text=detail["body_text"],
+                    body_html=detail["body_html"],
                     received_at=detail["received_at"],
                     is_read=detail["is_read"],
                 )

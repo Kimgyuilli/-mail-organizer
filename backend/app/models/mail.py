@@ -49,6 +49,7 @@ class Mail(Base):
     subject: Mapped[str | None] = mapped_column(String, nullable=True)
     to_email: Mapped[str | None] = mapped_column(String, nullable=True)
     body_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    body_html: Mapped[str | None] = mapped_column(Text, nullable=True)
     folder: Mapped[str | None] = mapped_column(String, nullable=True)
     received_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)

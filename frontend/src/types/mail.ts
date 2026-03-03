@@ -33,6 +33,7 @@ export interface MailDetail {
   from_name: string | null;
   subject: string | null;
   body_text: string | null;
+  body_html: string | null;
   to_email: string | null;
   folder: string | null;
   received_at: string | null;
