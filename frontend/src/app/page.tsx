@@ -14,6 +14,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { NaverConnectModal } from "@/components/NaverConnectModal";
 import { CategorySidebar } from "@/components/CategorySidebar";
 import { MailListView } from "@/components/MailListView";
+import { CalendarView } from "@/components/CalendarView";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -26,6 +27,7 @@ const LIMIT = 20;
 
 export default function Home() {
   const { userId, hydrated, userInfo, setUserInfo, categories, handleLogin, handleLogout } = useAuth();
+  const [activePage, setActivePage] = useState<"mail" | "calendar">("mail");
   const [sourceFilter, setSourceFilter] = useState<"all" | "gmail" | "naver">("all");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [showSenderRules, setShowSenderRules] = useState(false);
@@ -144,6 +146,8 @@ export default function Home() {
   return (
     <div className="flex h-screen flex-col bg-background">
       <AppHeader
+        activePage={activePage}
+        onPageChange={setActivePage}
         userInfo={userInfo}
         sourceFilter={sourceFilter}
         syncing={syncing}
@@ -159,72 +163,80 @@ export default function Home() {
         onMobileMenuToggle={() => setMobileMenuOpen(true)}
       />
 
-      {/* Mobile sidebar sheet */}
-      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-        <SheetContent side="left" className="w-64 p-0">
-          <SheetTitle className="sr-only">카테고리 메뉴</SheetTitle>
-          {sidebarContent}
-        </SheetContent>
-      </Sheet>
+      {activePage === "mail" && (
+        <>
+          {/* Mobile sidebar sheet */}
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetContent side="left" className="w-64 p-0">
+              <SheetTitle className="sr-only">카테고리 메뉴</SheetTitle>
+              {sidebarContent}
+            </SheetContent>
+          </Sheet>
 
-      <NaverConnectModal
-        open={showNaverConnect}
-        naverEmail={naverEmail}
-        naverPassword={naverPassword}
-        connecting={connectingNaver}
-        onEmailChange={setNaverEmail}
-        onPasswordChange={setNaverPassword}
-        onConnect={handleConnectNaver}
-        onClose={closeNaverConnect}
-      />
+          <NaverConnectModal
+            open={showNaverConnect}
+            naverEmail={naverEmail}
+            naverPassword={naverPassword}
+            connecting={connectingNaver}
+            onEmailChange={setNaverEmail}
+            onPasswordChange={setNaverPassword}
+            onConnect={handleConnectNaver}
+            onClose={closeNaverConnect}
+          />
 
-      {/* 3-panel layout */}
-      <div className="flex-1 overflow-hidden flex">
-        {/* Sidebar - separate from ResizablePanelGroup to avoid className issues */}
-        <aside className="hidden md:flex w-56 shrink-0 border-r overflow-auto">
-          {sidebarContent}
-        </aside>
+          {/* 3-panel layout */}
+          <div className="flex-1 overflow-hidden flex">
+            {/* Sidebar - separate from ResizablePanelGroup to avoid className issues */}
+            <aside className="hidden md:flex w-56 shrink-0 border-r overflow-auto">
+              {sidebarContent}
+            </aside>
 
-        <ResizablePanelGroup orientation="horizontal" className="flex-1">
+            <ResizablePanelGroup orientation="horizontal" className="flex-1">
 
-          {/* Mail list panel */}
-          <ResizablePanel
-            defaultSize={selectedMail ? 50 : 100}
-            minSize={30}
-          >
-            <MailListView
-              loading={loading}
-              messages={messages}
-              total={total}
-              categories={categories}
-              selectedMailId={selectedMail?.id ?? null}
-              classifiedCount={classifiedCount}
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onSelectMail={handleSelectMail}
-              onDragStart={handleDragStart}
-              onUpdateCategory={handleUpdateCategory}
-              onPrevPage={() => setOffset(Math.max(0, offset - LIMIT))}
-              onNextPage={() => setOffset(offset + LIMIT)}
-            />
-          </ResizablePanel>
-
-          {/* Detail panel - shown when mail selected */}
-          {selectedMail && (
-            <>
-              <ResizableHandle withHandle />
-              <ResizablePanel defaultSize={50} minSize={30}>
-                <MailDetailView
-                  mail={selectedMail}
+              {/* Mail list panel */}
+              <ResizablePanel
+                defaultSize={selectedMail ? 50 : 100}
+                minSize={30}
+              >
+                <MailListView
+                  loading={loading}
+                  messages={messages}
+                  total={total}
                   categories={categories}
-                  onBack={() => setSelectedMail(null)}
+                  selectedMailId={selectedMail?.id ?? null}
+                  classifiedCount={classifiedCount}
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onSelectMail={handleSelectMail}
+                  onDragStart={handleDragStart}
                   onUpdateCategory={handleUpdateCategory}
+                  onPrevPage={() => setOffset(Math.max(0, offset - LIMIT))}
+                  onNextPage={() => setOffset(offset + LIMIT)}
                 />
               </ResizablePanel>
-            </>
-          )}
-        </ResizablePanelGroup>
-      </div>
+
+              {/* Detail panel - shown when mail selected */}
+              {selectedMail && (
+                <>
+                  <ResizableHandle withHandle />
+                  <ResizablePanel defaultSize={50} minSize={30}>
+                    <MailDetailView
+                      mail={selectedMail}
+                      categories={categories}
+                      onBack={() => setSelectedMail(null)}
+                      onUpdateCategory={handleUpdateCategory}
+                    />
+                  </ResizablePanel>
+                </>
+              )}
+            </ResizablePanelGroup>
+          </div>
+        </>
+      )}
+
+      {activePage === "calendar" && (
+        <CalendarView userId={userId} />
+      )}
     </div>
   );
 }

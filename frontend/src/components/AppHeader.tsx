@@ -16,10 +16,14 @@ import {
   LogOut,
   Link,
   Menu,
+  Mail,
+  Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AppHeaderProps {
+  activePage: "mail" | "calendar";
+  onPageChange: (page: "mail" | "calendar") => void;
   userInfo: UserInfo | null;
   sourceFilter: "all" | "gmail" | "naver";
   syncing: boolean;
@@ -42,6 +46,8 @@ const SOURCE_TABS = [
 ];
 
 export function AppHeader({
+  activePage,
+  onPageChange,
   userInfo,
   sourceFilter,
   syncing,
@@ -75,29 +81,52 @@ export function AppHeader({
         Mail Organizer
       </h1>
 
-      {/* Source filter tabs */}
-      <div className="flex items-center rounded-lg bg-muted p-0.5 ml-2">
-        {SOURCE_TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => onSourceFilterChange(tab.key)}
-            className={cn(
-              "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-              sourceFilter === tab.key
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* Page navigation */}
+      <nav className="flex items-center gap-1 ml-2">
+        <Button
+          variant={activePage === "mail" ? "secondary" : "ghost"}
+          size="sm"
+          onClick={() => onPageChange("mail")}
+        >
+          <Mail className="h-4 w-4" />
+          <span className="hidden sm:inline">메일</span>
+        </Button>
+        <Button
+          variant={activePage === "calendar" ? "secondary" : "ghost"}
+          size="sm"
+          onClick={() => onPageChange("calendar")}
+        >
+          <Calendar className="h-4 w-4" />
+          <span className="hidden sm:inline">캘린더</span>
+        </Button>
+      </nav>
+
+      {/* Source filter tabs - only for mail page */}
+      {activePage === "mail" && (
+        <div className="flex items-center rounded-lg bg-muted p-0.5 ml-2">
+          {SOURCE_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => onSourceFilterChange(tab.key)}
+              className={cn(
+                "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                sourceFilter === tab.key
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Action buttons */}
-      <div className="flex items-center gap-1.5">
+      {/* Action buttons - only for mail page */}
+      {activePage === "mail" && (
+        <div className="flex items-center gap-1.5">
         <Button
           variant="ghost"
           size="sm"
@@ -122,22 +151,24 @@ export function AppHeader({
           </span>
         </Button>
 
-        {sourceFilter === "gmail" && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onApplyLabels}
-            disabled={applyingLabels || classifiedCount === 0}
-          >
-            <Tag className="h-4 w-4" />
-            <span className="hidden sm:inline">
-              {applyingLabels ? "적용 중" : "라벨 적용"}
-            </span>
-          </Button>
-        )}
+          {sourceFilter === "gmail" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onApplyLabels}
+              disabled={applyingLabels || classifiedCount === 0}
+            >
+              <Tag className="h-4 w-4" />
+              <span className="hidden sm:inline">
+                {applyingLabels ? "적용 중" : "라벨 적용"}
+              </span>
+            </Button>
+          )}
+        </div>
+      )}
 
-        {/* User menu */}
-        <DropdownMenu>
+      {/* User menu */}
+      <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
               <User className="h-4 w-4" />
@@ -167,7 +198,6 @@ export function AppHeader({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
     </header>
   );
 }

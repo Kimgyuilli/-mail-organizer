@@ -2,6 +2,94 @@
 
 > v1 (Phase 0~5) 기록 아카이브: [PROGRESS_V1.md](./PROGRESS_V1.md)
 
+## 2026-03-04 — agent (Phase 9: Google Calendar 통합)
+### 완료한 작업
+**백엔드 (9-1)**
+- `backend/app/services/google_auth.py`: OAuth 스코프에 `calendar.readonly` 추가
+- `backend/app/services/calendar_service.py`: Calendar Service 신규 생성 — list_calendars, list_events, get_event, _parse_event
+- `backend/app/routers/calendar.py`: Calendar API 라우터 — /calendars, /events, /events/{id}
+- `backend/app/main.py`: calendar 라우터 등록
+
+**프론트엔드 구조 변경 (9-2)**
+- `frontend/src/components/AppHeader.tsx`: 메일/캘린더 페이지 전환 네비게이션 추가
+- `frontend/src/app/page.tsx`: activePage 상태, 조건부 렌더링
+
+**프론트엔드 캘린더 UI (9-3)**
+- `frontend/src/types/calendar.ts`: CalendarInfo, CalendarEvent 타입
+- `frontend/src/hooks/useCalendar.ts`: 캘린더/이벤트 로드, 월 이동, 필터링 훅
+- `frontend/src/components/CalendarMonthView.tsx`: 월간 그리드 뷰
+- `frontend/src/components/CalendarEventDetail.tsx`: 이벤트 상세 패널
+- `frontend/src/components/CalendarSidebar.tsx`: 캘린더 목록/월 네비게이션
+- `frontend/src/components/CalendarView.tsx`: 통합 3-panel 레이아웃
+### 다음 할 일
+- Google Cloud Console에서 Calendar API 활성화 필요
+- 기존 사용자 로그아웃 → 재로그인 (calendar.readonly 스코프 동의 필요)
+- 배포 후 통합 테스트
+- 주간/일간 뷰는 추후 확장
+### 이슈/참고
+- 기존 OAuth 토큰은 calendar.readonly 스코프 없음 → 재인증 필수
+- prompt="consent"가 이미 설정되어 있어 재로그인 시 자동으로 새 스코프 동의 화면 표시
+- DB 모델 변경 없음 (캘린더 데이터는 실시간 API 호출)
+
+## 2026-03-04 — frontend-dev (캘린더 UI 컴포넌트 구현 완료)
+### 완료한 작업
+- `frontend/src/components/CalendarMonthView.tsx`: 월간 캘린더 뷰 구현
+  - 월별 그리드 레이아웃 (일~토, 6주)
+  - 이벤트를 날짜별로 그룹핑하여 표시
+  - 종일 이벤트 vs 시간 이벤트 구분 표시
+  - 일요일(빨강), 토요일(파랑) 색상 구분
+  - 오늘 날짜 하이라이트
+  - 이벤트 클릭 → 상세 패널 오픈
+  - 최대 3개 이벤트 표시, 초과 시 "+N개 더" 표시
+- `frontend/src/components/CalendarEventDetail.tsx`: 이벤트 상세 패널
+  - 이벤트 제목, 시간, 장소, 참석자, 설명 표시
+  - 종일 이벤트 vs 시간 이벤트에 따른 시간 포맷 처리
+  - 참석자 응답 상태 표시 (수락/거절/미정)
+  - Google Calendar 링크
+- `frontend/src/components/CalendarSidebar.tsx`: 캘린더 사이드바
+  - 월 네비게이션 (이전/다음/오늘)
+  - 캘린더 목록 체크박스 필터링
+  - 캘린더별 색상 표시
+  - 기본 캘린더 표시
+- `frontend/src/components/CalendarView.tsx`: 통합 캘린더 뷰
+  - 사이드바 + 월간뷰 + 이벤트 상세 3-panel 레이아웃
+  - ResizablePanel로 패널 크기 조절 가능
+  - 이벤트 선택 시 상세 패널 동적 표시
+- `frontend/src/app/page.tsx`: CalendarView import 및 연동
+  - activePage === "calendar" 조건부 렌더링
+### 다음 할 일
+- 백엔드 Calendar API 라우터 완료 후 통합 테스트
+- 주간/일간 캘린더 뷰 (CalendarWeekView.tsx) 추후 구현 (optional)
+### 이슈/참고
+- 백엔드 API 라우터 `/api/calendar/calendars`, `/api/calendar/events` 구현 대기 중
+- useCalendar 훅의 try-catch로 백엔드 미준비 상태에서도 에러 없이 빈 화면 표시
+
+## 2026-03-04 — frontend-dev (Google Calendar 프론트엔드 구조 변경)
+### 완료한 작업
+- `frontend/src/types/calendar.ts`: Calendar 타입 정의 파일 생성 (CalendarInfo, CalendarEvent, CalendarsResponse, EventsResponse)
+- `frontend/src/components/AppHeader.tsx`: 페이지 네비게이션 추가
+  - props에 `activePage`, `onPageChange` 추가
+  - 로고 옆에 메일/캘린더 전환 탭 추가 (lucide-react Mail, Calendar 아이콘 사용)
+  - 소스 필터 탭과 메일 액션 버튼은 `activePage === "mail"` 조건부 렌더링
+- `frontend/src/app/page.tsx`: activePage 상태 추가 및 조건부 렌더링
+  - `useState<"mail" | "calendar">("mail")` 추가
+  - AppHeader에 activePage, onPageChange props 전달
+  - 메일 UI (Sheet, NaverConnectModal, 3-panel layout)는 `activePage === "mail"` 조건 내 렌더링
+  - 캘린더 페이지는 placeholder div 표시 (캘린더 뷰 구현 대기)
+- `frontend/src/hooks/useCalendar.ts`: 캘린더 훅 구현
+  - 캘린더 목록 로드, 이벤트 로드 (월 기준)
+  - 캘린더 선택/필터링, 월 이동 네비게이션 로직
+  - enabled 플래그로 캘린더 페이지 활성화 시에만 API 호출
+### 다음 할 일
+- 백엔드 Calendar API 라우터 완료 후 프론트엔드 캘린더 뷰 컴포넌트 구현
+  - CalendarMonthView.tsx (월간 그리드)
+  - CalendarWeekView.tsx (주간/일간 타임라인)
+  - CalendarEventDetail.tsx (이벤트 상세)
+  - CalendarListSidebar.tsx (캘린더 목록 필터)
+### 이슈/참고
+- 백엔드 API 라우터 `/api/calendar/calendars`, `/api/calendar/events` 구현 필요
+- useCalendar 훅은 백엔드 API 준비 전까지 에러를 조용히 처리 (try-catch)
+
 ## 2026-03-04 — agent (HTML 이메일 렌더링)
 ### 완료한 작업
 - `backend/app/models/mail.py`: `body_html` 컬럼 추가 (Text, nullable)

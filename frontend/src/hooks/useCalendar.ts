@@ -1,0 +1,114 @@
+import { useState, useEffect, useCallback } from "react";
+import { apiFetch } from "@/lib/api";
+import type { CalendarInfo, CalendarEvent, CalendarsResponse, EventsResponse } from "@/types/calendar";
+
+interface UseCalendarOptions {
+  userId: number | null;
+  enabled?: boolean; // activePage === "calendar" 일 때만 true
+}
+
+export function useCalendar({ userId, enabled = true }: UseCalendarOptions) {
+  const [calendars, setCalendars] = useState<CalendarInfo[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [selectedCalendarIds, setSelectedCalendarIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
+
+  // 캘린더 목록 로드
+  const loadCalendars = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const data = await apiFetch<CalendarsResponse>(`/api/calendar/calendars?user_id=${userId}`);
+      setCalendars(data.calendars);
+      // 기본적으로 모든 캘린더 선택
+      setSelectedCalendarIds(new Set(data.calendars.map((c) => c.id)));
+    } catch {
+      // 캘린더 권한 없을 수 있음
+      setCalendars([]);
+    }
+  }, [userId]);
+
+  // 이벤트 로드 (현재 월 기준)
+  const loadEvents = useCallback(async (date?: Date) => {
+    if (!userId) return;
+    setLoading(true);
+    try {
+      const target = date || currentDate;
+      const year = target.getFullYear();
+      const month = target.getMonth();
+      // 해당 월의 첫날 ~ 마지막날 (여유있게 전후 1주)
+      const timeMin = new Date(year, month, 1 - 7).toISOString();
+      const timeMax = new Date(year, month + 1, 7).toISOString();
+
+      const data = await apiFetch<EventsResponse>(
+        `/api/calendar/events?user_id=${userId}&time_min=${timeMin}&time_max=${timeMax}`
+      );
+      setEvents(data.events);
+    } catch {
+      setEvents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId, currentDate]);
+
+  // enabled일 때 캘린더 목록 로드
+  useEffect(() => {
+    if (enabled && userId) {
+      loadCalendars();
+    }
+  }, [enabled, userId, loadCalendars]);
+
+  // enabled일 때 이벤트 로드
+  useEffect(() => {
+    if (enabled && userId) {
+      loadEvents();
+    }
+  }, [enabled, userId, currentDate, loadEvents]);
+
+  // 선택된 캘린더로 이벤트 필터링
+  const filteredEvents = events.filter((ev) => selectedCalendarIds.has(ev.calendar_id));
+
+  const toggleCalendar = useCallback((calendarId: string) => {
+    setSelectedCalendarIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(calendarId)) {
+        next.delete(calendarId);
+      } else {
+        next.add(calendarId);
+      }
+      return next;
+    });
+  }, []);
+
+  const goToMonth = useCallback((date: Date) => {
+    setCurrentDate(date);
+  }, []);
+
+  const goToPrevMonth = useCallback(() => {
+    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  }, []);
+
+  const goToNextMonth = useCallback(() => {
+    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  }, []);
+
+  const goToToday = useCallback(() => {
+    setCurrentDate(new Date());
+  }, []);
+
+  return {
+    calendars,
+    events: filteredEvents,
+    allEvents: events,
+    selectedCalendarIds,
+    loading,
+    currentDate,
+    loadCalendars,
+    loadEvents,
+    toggleCalendar,
+    goToMonth,
+    goToPrevMonth,
+    goToNextMonth,
+    goToToday,
+  };
+}
