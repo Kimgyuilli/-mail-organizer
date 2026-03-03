@@ -352,6 +352,7 @@ async def sync_gmail_messages(
             from_name=detail["from_name"],
             subject=detail["subject"],
             body_text=detail["body_text"],
+            body_html=detail["body_html"],
             received_at=detail["received_at"],
             is_read=detail["is_read"],
         )
