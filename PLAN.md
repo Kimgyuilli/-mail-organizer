@@ -35,3 +35,54 @@
 | MailDetailView 조건부 렌더링 | frontend-dev | done | — | html 있으면 HTML, 없으면 plain text |
 | Tailwind Typography 플러그인 | frontend-dev | done | — | @tailwindcss/typography |
 | sync_gmail_messages body_html 누락 수정 | backend-dev | done | — | 단일 페이지 sync 함수 버그 |
+
+## Phase 9: Google Calendar 통합
+
+> 플랫폼을 종합 생산성 도구로 확장하는 첫 단계. Google Calendar를 연동하여 일정을 조회/관리할 수 있도록 한다.
+
+### 9-1. 백엔드 — OAuth 스코프 확장 + Calendar API
+
+| 태스크 | 담당 | 상태 | 의존 | 비고 |
+|--------|------|------|------|------|
+| OAuth 스코프에 calendar.readonly 추가 | backend-dev | done | — | google_auth.py SCOPES에 추가 |
+| Calendar Service 구현 | backend-dev | done | 스코프 확장 | calendar_service.py — list_calendars, list_events, get_event |
+| Calendar API 라우터 구현 | backend-dev | done | Calendar Service | routers/calendar.py — /calendars, /events, /events/{id} |
+| 재인증 플로우 처리 | backend-dev | done | 스코프 확장 | prompt="consent" 기존 설정이 자동 처리, 기존 사용자 로그아웃→재로그인 필요 |
+
+### 9-2. 프론트엔드 — 앱 네비게이션 구조 변경
+
+| 태스크 | 담당 | 상태 | 의존 | 비고 |
+|--------|------|------|------|------|
+| 앱 네비게이션 추가 (메일/캘린더 탭) | frontend-dev | done | — | AppHeader에 페이지 전환 UI 추가 완료 |
+| 라우팅 구조 변경 | frontend-dev | done | 네비게이션 | page.tsx에 activePage 상태 추가, 조건부 렌더링 |
+
+### 9-3. 프론트엔드 — Calendar UI
+
+| 태스크 | 담당 | 상태 | 의존 | 비고 |
+|--------|------|------|------|------|
+| Calendar 타입 정의 | frontend-dev | done | — | types/calendar.ts 생성 완료 |
+| useCalendar 훅 구현 | frontend-dev | done | Calendar 타입, API 라우터 | hooks/useCalendar.ts 생성 완료 |
+| 월간 캘린더 뷰 컴포넌트 | frontend-dev | done | useCalendar | CalendarMonthView.tsx — 월간 그리드, 이벤트 표시 완료 |
+| 이벤트 상세 패널 | frontend-dev | done | 월간 뷰 | CalendarEventDetail.tsx — 이벤트 클릭 시 상세 정보 완료 |
+| 캘린더 목록 사이드바 | frontend-dev | done | useCalendar | CalendarSidebar.tsx — 캘린더별 필터링 완료 |
+| 통합 캘린더 뷰 | frontend-dev | done | 위 전체 | CalendarView.tsx — 레이아웃 통합, page.tsx 연동 완료 |
+| 주간/일간 캘린더 뷰 컴포넌트 | frontend-dev | pending | 월간 뷰 | CalendarWeekView.tsx — 타임라인 기반 주간/일간 뷰 (추후 구현) |
+
+### 의존 관계 요약
+
+```
+9-1 OAuth 스코프 확장
+ ├→ 9-1 Calendar Service → 9-1 API 라우터 ─┐
+ └→ 9-1 재인증 플로우                        │
+                                             ├→ 9-3 useCalendar → 9-3 월간 뷰 → 9-3 주간/일간 뷰
+9-2 네비게이션 → 9-2 라우팅 ─────────────────┘                                 → 9-3 이벤트 상세
+                                                                               → 9-3 캘린더 사이드바
+9-3 Calendar 타입 (독립)
+```
+
+### 기술 결정 사항
+
+- **Calendar 라이브러리**: 직접 구현 vs 라이브러리 (FullCalendar 등) — 태스크 진행 시 결정
+- **데이터 캐싱**: 초기엔 DB 저장 없이 실시간 API 호출, 필요 시 캐싱 추가
+- **스코프**: `calendar.readonly`로 시작 (읽기 전용), 이벤트 생성/수정은 추후 확장
+- **google-api-python-client 이미 설치됨** — Calendar API v3 바로 사용 가능

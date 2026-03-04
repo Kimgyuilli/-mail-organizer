@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.models import Base
 from app.models.base import engine
-from app.routers import auth, classify, gmail, inbox, naver
+from app.routers import auth, calendar, classify, gmail, inbox, naver
 from app.services.background_sync import sync_all_users
 
 logger = logging.getLogger(__name__)
@@ -56,6 +56,7 @@ app.add_middleware(
 
 
 app.include_router(auth.router)
+app.include_router(calendar.router)
 app.include_router(classify.router)
 app.include_router(gmail.router)
 app.include_router(inbox.router)
