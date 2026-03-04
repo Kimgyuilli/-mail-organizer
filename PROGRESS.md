@@ -22,12 +22,12 @@
 - `frontend/src/components/CalendarSidebar.tsx`: 캘린더 목록/월 네비게이션
 - `frontend/src/components/CalendarView.tsx`: 통합 3-panel 레이아웃
 ### 다음 할 일
-- Google Cloud Console에서 Calendar API 활성화 필요
-- 기존 사용자 로그아웃 → 재로그인 (calendar.readonly 스코프 동의 필요)
-- 배포 후 통합 테스트
+- PR #3 머지 후 배포
 - 주간/일간 뷰는 추후 확장
 ### 이슈/참고
-- 기존 OAuth 토큰은 calendar.readonly 스코프 없음 → 재인증 필수
+- 기존 OAuth 토큰은 calendar.readonly 스코프 없음 → 재인증 필수 (로그아웃→재로그인)
+- calendar_id="primary"로 조회 시 실제 ID 불일치 → 모든 캘린더 병렬 조회로 해결
+- Google Cloud Console에서 Calendar API 활성화 필수
 - prompt="consent"가 이미 설정되어 있어 재로그인 시 자동으로 새 스코프 동의 화면 표시
 - DB 모델 변경 없음 (캘린더 데이터는 실시간 API 호출)
 
