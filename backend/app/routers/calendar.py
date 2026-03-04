@@ -1,12 +1,28 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 
 from app.dependencies import get_google_user
 from app.models import User
-from app.services.calendar_service import get_event, list_calendars, list_events
+from app.services.calendar_service import (
+    create_event,
+    get_event,
+    list_calendars,
+    list_events,
+)
 
 router = APIRouter(prefix="/api/calendar", tags=["calendar"])
+
+
+class CreateEventRequest(BaseModel):
+    summary: str
+    start: str
+    end: str
+    all_day: bool = False
+    calendar_id: str = "primary"
+    description: str | None = None
+    location: str | None = None
 
 
 @router.get("/calendars")
@@ -44,4 +60,24 @@ async def get_event_detail(
     """단일 이벤트 상세 조회."""
     _user, credentials = user_credentials
     event = await get_event(credentials, calendar_id, event_id)
+    return event
+
+
+@router.post("/events")
+async def create_new_event(
+    req: CreateEventRequest,
+    user_credentials: tuple[User, object] = Depends(get_google_user),
+):
+    """Google Calendar에 새 이벤트 생성."""
+    _user, credentials = user_credentials
+    event = await create_event(
+        credentials,
+        calendar_id=req.calendar_id,
+        summary=req.summary,
+        start=req.start,
+        end=req.end,
+        all_day=req.all_day,
+        description=req.description,
+        location=req.location,
+    )
     return event

@@ -5,13 +5,17 @@ import { useCalendar } from "@/hooks/useCalendar";
 import { CalendarMonthView } from "@/components/CalendarMonthView";
 import { CalendarEventDetail } from "@/components/CalendarEventDetail";
 import { CalendarSidebar } from "@/components/CalendarSidebar";
+import { EventCreateModal } from "@/components/EventCreateModal";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { CalendarEvent } from "@/types/calendar";
+import type { CalendarEvent, CreateEventRequest } from "@/types/calendar";
+import { toast } from "sonner";
 
 interface CalendarViewProps {
   userId: number | null;
@@ -28,9 +32,26 @@ export function CalendarView({ userId }: CalendarViewProps) {
     goToPrevMonth,
     goToNextMonth,
     goToToday,
+    createEvent,
   } = useCalendar({ userId, enabled: true });
 
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createDefaultDate, setCreateDefaultDate] = useState<Date | undefined>();
+
+  const handleSelectDate = (date: Date) => {
+    setCreateDefaultDate(date);
+    setShowCreateModal(true);
+  };
+
+  const handleCreateEvent = async (req: CreateEventRequest) => {
+    try {
+      await createEvent(req);
+      toast.success("일정이 추가되었습니다");
+    } catch {
+      toast.error("일정 추가에 실패했습니다");
+    }
+  };
 
   if (loading && events.length === 0) {
     return (
@@ -44,15 +65,29 @@ export function CalendarView({ userId }: CalendarViewProps) {
     <div className="flex-1 overflow-hidden flex">
       {/* Calendar sidebar */}
       <aside className="hidden md:flex w-56 shrink-0 border-r overflow-auto">
-        <CalendarSidebar
-          calendars={calendars}
-          selectedCalendarIds={selectedCalendarIds}
-          currentDate={currentDate}
-          onToggleCalendar={toggleCalendar}
-          onPrevMonth={goToPrevMonth}
-          onNextMonth={goToNextMonth}
-          onToday={goToToday}
-        />
+        <div className="flex flex-col h-full">
+          <div className="p-3">
+            <Button
+              className="w-full"
+              onClick={() => {
+                setCreateDefaultDate(new Date());
+                setShowCreateModal(true);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              일정 추가
+            </Button>
+          </div>
+          <CalendarSidebar
+            calendars={calendars}
+            selectedCalendarIds={selectedCalendarIds}
+            currentDate={currentDate}
+            onToggleCalendar={toggleCalendar}
+            onPrevMonth={goToPrevMonth}
+            onNextMonth={goToNextMonth}
+            onToday={goToToday}
+          />
+        </div>
       </aside>
 
       <ResizablePanelGroup orientation="horizontal" className="flex-1">
@@ -63,7 +98,7 @@ export function CalendarView({ userId }: CalendarViewProps) {
             events={events}
             selectedEventId={selectedEvent?.id ?? null}
             onSelectEvent={setSelectedEvent}
-            onSelectDate={() => {}}
+            onSelectDate={handleSelectDate}
           />
         </ResizablePanel>
 
@@ -80,6 +115,15 @@ export function CalendarView({ userId }: CalendarViewProps) {
           </>
         )}
       </ResizablePanelGroup>
+
+      {/* Event create modal */}
+      <EventCreateModal
+        open={showCreateModal}
+        calendars={calendars}
+        defaultDate={createDefaultDate}
+        onClose={() => setShowCreateModal(false)}
+        onSubmit={handleCreateEvent}
+      />
     </div>
   );
 }

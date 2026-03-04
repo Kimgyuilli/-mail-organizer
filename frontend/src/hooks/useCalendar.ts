@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
-import type { CalendarInfo, CalendarEvent, CalendarsResponse, EventsResponse } from "@/types/calendar";
+import type { CalendarInfo, CalendarEvent, CalendarsResponse, EventsResponse, CreateEventRequest } from "@/types/calendar";
 
 interface UseCalendarOptions {
   userId: number | null;
@@ -107,6 +107,17 @@ export function useCalendar({ userId, enabled = true }: UseCalendarOptions) {
     setCurrentDate(new Date());
   }, []);
 
+  const createEvent = useCallback(async (req: CreateEventRequest) => {
+    if (!userId) return null;
+    const event = await apiFetch<CalendarEvent>(`/api/calendar/events?user_id=${userId}`, {
+      method: "POST",
+      body: JSON.stringify(req),
+    });
+    // 생성 후 이벤트 목록 새로고침
+    await loadEvents();
+    return event;
+  }, [userId, loadEvents]);
+
   return {
     calendars,
     events: filteredEvents,
@@ -121,5 +132,6 @@ export function useCalendar({ userId, enabled = true }: UseCalendarOptions) {
     goToPrevMonth,
     goToNextMonth,
     goToToday,
+    createEvent,
   };
 }

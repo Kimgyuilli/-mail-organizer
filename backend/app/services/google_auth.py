@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+import os
+
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 
 from app.config import settings
 
+# Google OAuth가 반환하는 스코프 순서/내용이 요청과 다를 수 있음
+# (include_granted_scopes로 이전 스코프가 포함되는 등)
+os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
+
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.labels",
     "https://www.googleapis.com/auth/gmail.modify",
-    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/userinfo.email",
     "openid",
 ]

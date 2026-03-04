@@ -66,6 +66,7 @@
 | 이벤트 상세 패널 | frontend-dev | done | 월간 뷰 | CalendarEventDetail.tsx — 이벤트 클릭 시 상세 정보 완료 |
 | 캘린더 목록 사이드바 | frontend-dev | done | useCalendar | CalendarSidebar.tsx — 캘린더별 필터링 완료 |
 | 통합 캘린더 뷰 | frontend-dev | done | 위 전체 | CalendarView.tsx — 레이아웃 통합, page.tsx 연동 완료 |
+| 이벤트 생성 기능 | frontend-dev | done | 통합 캘린더 뷰 | EventCreateModal.tsx, useCalendar createEvent 추가 |
 | 주간/일간 캘린더 뷰 컴포넌트 | frontend-dev | pending | 월간 뷰 | CalendarWeekView.tsx — 타임라인 기반 주간/일간 뷰 (추후 구현) |
 
 ### 의존 관계 요약
@@ -80,9 +81,17 @@
 9-3 Calendar 타입 (독립)
 ```
 
+### 9-4. 백엔드 — Calendar 쓰기 권한 + 이벤트 생성
+
+| 태스크 | 담당 | 상태 | 의존 | 비고 |
+|--------|------|------|------|------|
+| OAuth 스코프 calendar.events로 변경 | backend-dev | done | 9-3 이벤트 생성 기능 | calendar.readonly → calendar.events, OAUTHLIB_RELAX_TOKEN_SCOPE 설정 |
+| Calendar Service에 create_event 추가 | backend-dev | done | 스코프 변경 | calendar_service.py — create_event 구현 |
+| POST /events API 구현 | backend-dev | done | Calendar Service | routers/calendar.py — POST /events |
+
 ### 기술 결정 사항
 
 - **Calendar 라이브러리**: 직접 구현 vs 라이브러리 (FullCalendar 등) — 태스크 진행 시 결정
 - **데이터 캐싱**: 초기엔 DB 저장 없이 실시간 API 호출, 필요 시 캐싱 추가
-- **스코프**: `calendar.readonly`로 시작 (읽기 전용), 이벤트 생성/수정은 추후 확장
+- **스코프**: `calendar.readonly`로 시작 (읽기 전용), 이벤트 생성/수정은 추후 확장 → **9-4에서 쓰기 권한 확장**
 - **google-api-python-client 이미 설치됨** — Calendar API v3 바로 사용 가능
