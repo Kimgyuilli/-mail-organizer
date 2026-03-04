@@ -29,7 +29,7 @@ class Task(Base):
     )
     title: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # todo / in_progress / on_hold
+    # todo / in_progress / on_hold / done
     status: Mapped[str] = mapped_column(String, default="todo")
     # low / medium / high / urgent
     priority: Mapped[str] = mapped_column(String, default="medium")
