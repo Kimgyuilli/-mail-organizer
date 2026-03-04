@@ -35,3 +35,13 @@ export interface EventsResponse {
   events: CalendarEvent[];
   calendar_id: string;
 }
+
+export interface CreateEventRequest {
+  summary: string;
+  start: string;
+  end: string;
+  all_day: boolean;
+  calendar_id: string;
+  description?: string;
+  location?: string;
+}

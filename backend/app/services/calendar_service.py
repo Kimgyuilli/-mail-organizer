@@ -79,6 +79,44 @@ async def get_event(
     return _parse_event(raw, calendar_id)
 
 
+async def create_event(
+    credentials: Credentials,
+    calendar_id: str,
+    summary: str,
+    start: str,
+    end: str,
+    all_day: bool = False,
+    description: str | None = None,
+    location: str | None = None,
+) -> dict[str, Any]:
+    """Google Calendar에 새 이벤트 생성."""
+    service = _build_calendar(credentials)
+
+    body: dict[str, Any] = {
+        "summary": summary,
+    }
+
+    if all_day:
+        # 종일 이벤트: date 형식 (YYYY-MM-DD)
+        body["start"] = {"date": start}
+        body["end"] = {"date": end}
+    else:
+        # 시간 이벤트: dateTime 형식 (RFC3339)
+        body["start"] = {"dateTime": start}
+        body["end"] = {"dateTime": end}
+
+    if description:
+        body["description"] = description
+    if location:
+        body["location"] = location
+
+    def _create():
+        return service.events().insert(calendarId=calendar_id, body=body).execute()
+
+    raw = await asyncio.to_thread(_create)
+    return _parse_event(raw, calendar_id)
+
+
 def _parse_event(raw: dict, calendar_id: str) -> dict[str, Any]:
     """Google Calendar 이벤트 응답을 파싱."""
     start = raw.get("start", {})

@@ -2,6 +2,32 @@
 
 > v1 (Phase 0~5) 기록 아카이브: [PROGRESS_V1.md](./PROGRESS_V1.md)
 
+## 2026-03-04 — frontend-dev (Google Calendar 이벤트 생성 기능)
+### 완료한 작업
+- `frontend/src/types/calendar.ts`: CreateEventRequest 타입 추가
+- `frontend/src/hooks/useCalendar.ts`: createEvent 함수 추가
+  - POST /api/calendar/events 호출
+  - 생성 후 이벤트 목록 자동 새로고침
+- `frontend/src/components/EventCreateModal.tsx`: 이벤트 생성 모달 컴포넌트 신규 생성
+  - Dialog 기반 모달 UI
+  - 제목, 종일 여부, 시작/종료 날짜&시간, 장소, 설명, 캘린더 선택
+  - 종일 이벤트 vs 시간 이벤트 조건부 입력
+  - 유효성 검증 (제목 필수)
+- `frontend/src/components/CalendarView.tsx`: 이벤트 생성 기능 연동
+  - 사이드바에 "일정 추가" 버튼 추가
+  - 날짜 클릭 시 해당 날짜로 생성 모달 오픈 (onSelectDate 핸들러 연결)
+  - toast 알림 (성공/실패)
+- `PLAN.md`: Phase 9-3에 "이벤트 생성 기능" 태스크 추가, Phase 9-4 백엔드 쓰기 권한 확장 계획 추가
+### 다음 할 일
+- 백엔드 Calendar API에 POST /events 엔드포인트 구현 필요 (Phase 9-4)
+  - OAuth 스코프에 `calendar` (쓰기 권한) 추가
+  - calendar_service.py에 create_event, update_event, delete_event 추가
+  - routers/calendar.py에 POST /events 라우터 추가
+- 프론트엔드에서 이벤트 생성 테스트
+### 이슈/참고
+- 현재 백엔드는 `calendar.readonly` 스코프만 있어 POST 요청이 실패함 (403 Forbidden 예상)
+- 백엔드 9-4 완료 후 재인증 필요 (기존 사용자 로그아웃 → 재로그인으로 새 스코프 동의)
+
 ## 2026-03-04 — agent (Phase 9: Google Calendar 통합)
 ### 완료한 작업
 **백엔드 (9-1)**
