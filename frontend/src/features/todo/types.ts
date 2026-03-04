@@ -3,7 +3,7 @@ export interface Task {
   user_id: number;
   title: string;
   description: string | null;
-  status: "todo" | "in_progress" | "on_hold";
+  status: "todo" | "in_progress" | "on_hold" | "done";
   priority: "low" | "medium" | "high" | "urgent";
   due_date: string | null;
   position: number;
@@ -52,10 +52,11 @@ export interface SubtasksResponse {
   subtasks: Subtask[];
 }
 
-export type TaskStatus = "todo" | "in_progress" | "on_hold";
+export type TaskStatus = "todo" | "in_progress" | "on_hold" | "done";
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {
   todo: "할 일",
   in_progress: "진행 중",
   on_hold: "보류",
+  done: "완료",
 };

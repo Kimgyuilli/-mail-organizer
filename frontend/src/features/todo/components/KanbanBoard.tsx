@@ -27,7 +27,7 @@ import type {
 } from "@/features/todo/types";
 import { STATUS_LABELS } from "@/features/todo/types";
 
-const COLUMNS: TaskStatus[] = ["todo", "in_progress", "on_hold"];
+const COLUMNS: TaskStatus[] = ["todo", "in_progress", "on_hold", "done"];
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -91,6 +91,7 @@ export function KanbanBoard({
       todo: [],
       in_progress: [],
       on_hold: [],
+      done: [],
     };
     for (const t of tasks) {
       const col = grouped[t.status as TaskStatus];
