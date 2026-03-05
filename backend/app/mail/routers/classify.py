@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
+
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,7 +71,7 @@ async def classify_user_mails(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Classify user's mails and save results to DB."""
+    """Classify user's mails with SSE progress streaming."""
     user_id = user.id
 
     query = select(Mail).where(Mail.user_id == user_id)
@@ -80,7 +84,11 @@ async def classify_user_mails(
     mails = list(result.scalars().all())
 
     if not mails:
-        return {"classified": 0, "results": []}
+        return StreamingResponse(
+            _empty_stream(),
+            media_type="text/event-stream",
+            headers=_sse_headers(),
+        )
 
     # Filter out already classified mails (unless specific IDs requested)
     if not mail_ids:
@@ -93,7 +101,11 @@ async def classify_user_mails(
         mails = [m for m in mails if m.id not in already_classified]
 
     if not mails:
-        return {"classified": 0, "results": []}
+        return StreamingResponse(
+            _empty_stream(),
+            media_type="text/event-stream",
+            headers=_sse_headers(),
+        )
 
     # 피드백 데이터 조회
     feedback_examples = await get_feedback_examples(db, user_id, limit=20)
@@ -110,16 +122,63 @@ async def classify_user_mails(
         for m in mails
     ]
 
+    return StreamingResponse(
+        _classify_stream(
+            db, user_id, mails, email_dicts,
+            feedback_examples, sender_rules,
+        ),
+        media_type="text/event-stream",
+        headers=_sse_headers(),
+    )
+
+
+def _sse_headers() -> dict[str, str]:
+    return {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    }
+
+
+async def _empty_stream() -> AsyncIterator[str]:
+    yield f"data: {json.dumps({'type': 'done', 'classified': 0, 'results': []})}\n\n"
+
+
+async def _classify_stream(
+    db: AsyncSession,
+    user_id: int,
+    mails: list[Mail],
+    email_dicts: list[dict],
+    feedback_examples: list[dict],
+    sender_rules: dict[str, str],
+) -> AsyncIterator[str]:
+    """SSE 스트림으로 분류 진행률을 전송."""
+    # 진행률 콜백 — SSE 이벤트를 큐에 넣음
+    progress_events: list[dict] = []
+
+    def on_progress(processed: int, total_count: int) -> None:
+        progress_events.append({
+            "type": "progress",
+            "processed": processed,
+            "total": total_count,
+        })
+
     try:
         classifications = await classify_batch(
             email_dicts,
             feedback_examples=feedback_examples,
             sender_rules=sender_rules,
+            on_progress=on_progress,
         )
     except Exception as exc:
-        raise ClassificationFailedException(detail=f"Classification failed: {exc}")
+        yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+        return
 
-    # Ensure default labels exist and build label cache
+    # 진행률 이벤트 전송
+    for evt in progress_events:
+        yield f"data: {json.dumps(evt)}\n\n"
+
+    # DB 저장
     await _ensure_default_labels(db, user_id)
     label_cache: dict[str, Label] = {}
     all_labels_result = await db.execute(
@@ -138,7 +197,6 @@ async def classify_user_mails(
         category = cls.get("category", "알림")
         confidence = cls.get("confidence", 0.0)
 
-        # Find or create label (using cache)
         label = label_cache.get(category)
         if label is None:
             label = Label(user_id=user_id, name=category, is_default=False)
@@ -146,7 +204,6 @@ async def classify_user_mails(
             await db.flush()
             label_cache[category] = label
 
-        # Save classification
         classification = Classification(
             mail_id=mail.id,
             label_id=label.id,
@@ -163,7 +220,14 @@ async def classify_user_mails(
         })
 
     await db.commit()
-    return {"classified": len(results), "results": results}
+
+    # 완료 이벤트
+    done_event = {
+        "type": "done",
+        "classified": len(results),
+        "results": results,
+    }
+    yield f"data: {json.dumps(done_event)}\n\n"
 
 
 class UpdateClassificationRequest(BaseModel):

@@ -236,3 +236,29 @@
 | deploy.yml 서버 경로 변경 | agent | done | — | cd ~/g-tool |
 | 메모리 파일 업데이트 | agent | done | — | MEMORY.md |
 | GitHub 레포 rename + 배포 서버 폴더/DB rename | — | pending | PR 병합 후 | gh repo rename g-tool, 서버 수동 작업 |
+
+## Phase 18: 메일 분류 시스템 최적화
+
+> OpenAI gpt-4o-mini 분류 시스템의 토큰 효율, 처리 속도, 사용자 피드백 개선
+
+### 18-1. 토큰 최적화 + JSON 안정성
+
+| 태스크 | 담당 | 상태 | 의존 | 비고 |
+|--------|------|------|------|------|
+| Structured Outputs 적용 + _extract_json 제거 | backend-dev | done | — | response_format json_schema |
+| 본문 truncate 500→300자, 청크 10→15개 | backend-dev | done | — | classifier.py |
+| SYSTEM_PROMPT JSON 지시 제거 | backend-dev | done | — | Structured Outputs가 보장 |
+
+### 18-2. 병렬 처리
+
+| 태스크 | 담당 | 상태 | 의존 | 비고 |
+|--------|------|------|------|------|
+| asyncio.gather + Semaphore(3) 병렬 처리 | backend-dev | done | 18-1 | classifier.py |
+
+### 18-3. SSE 실시간 진행 피드백
+
+| 태스크 | 담당 | 상태 | 의존 | 비고 |
+|--------|------|------|------|------|
+| classify_batch에 on_progress 콜백 | backend-dev | done | 18-2 | classifier.py |
+| POST /api/classify/mails SSE 변경 | backend-dev | done | on_progress | classify.py |
+| 프론트엔드 fetch streaming + 진행률 UI | frontend-dev | done | SSE 엔드포인트 | useMailActions, AppHeader, page.tsx |
