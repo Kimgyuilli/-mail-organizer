@@ -67,7 +67,7 @@
 | 캘린더 목록 사이드바 | frontend-dev | done | useCalendar | CalendarSidebar.tsx — 캘린더별 필터링 완료 |
 | 통합 캘린더 뷰 | frontend-dev | done | 위 전체 | CalendarView.tsx — 레이아웃 통합, page.tsx 연동 완료 |
 | 이벤트 생성 기능 | frontend-dev | done | 통합 캘린더 뷰 | EventCreateModal.tsx, useCalendar createEvent 추가 |
-| 주간/일간 캘린더 뷰 컴포넌트 | frontend-dev | pending | 월간 뷰 | CalendarWeekView.tsx — 타임라인 기반 주간/일간 뷰 (추후 구현) |
+| ~~주간/일간 캘린더 뷰 컴포넌트~~ | frontend-dev | 취소 | 월간 뷰 | 불필요하여 취소 |
 
 ### 의존 관계 요약
 
@@ -235,7 +235,7 @@
 | DB 파일명 변경 | agent | done | — | config.py, docker-compose.yml |
 | deploy.yml 서버 경로 변경 | agent | done | — | cd ~/g-tool |
 | 메모리 파일 업데이트 | agent | done | — | MEMORY.md |
-| GitHub 레포 rename + 배포 서버 폴더/DB rename | — | pending | PR 병합 후 | gh repo rename g-tool, 서버 수동 작업 |
+| GitHub 레포 rename + 배포 서버 폴더/DB rename | — | done | PR 병합 후 | 수동 완료 |
 
 ## Phase 18: 메일 분류 시스템 최적화
 
