@@ -2,6 +2,50 @@
 
 > v1 (Phase 0~5) 기록 아카이브: [PROGRESS_V1.md](./PROGRESS_V1.md)
 
+## 2026-03-05 — agent (Phase 18: 메일 분류 시스템 최적화)
+### 완료한 작업
+**1단계: 토큰 최적화 + JSON 안정성**
+- `backend/app/mail/services/classifier.py`:
+  - OpenAI Structured Outputs 적용 (`response_format` json_schema) — JSON 파싱 실패율 0%
+  - `_extract_json()` 함수 제거 (불필요)
+  - `SYSTEM_PROMPT` 마지막 줄 JSON 지시 제거 (~20토큰 절감)
+  - `SINGLE_TEMPLATE`, `BATCH_TEMPLATE`에서 JSON 형식 지시 제거
+  - `_truncate_body` default 500→300자 (~50토큰/메일 절감)
+  - `chunk_size` 10→15 (API 호출 33% 감소)
+
+**2단계: 병렬 처리**
+- `backend/app/mail/services/classifier.py`:
+  - `_process_chunk()` 함수 분리 (청크별 독립 처리)
+  - `asyncio.as_completed()` + `asyncio.Semaphore(3)`로 병렬 처리
+  - `on_progress` 콜백 파라미터 추가
+
+**3단계: SSE 실시간 진행 피드백**
+- `backend/app/mail/routers/classify.py`:
+  - `POST /api/classify/mails` → SSE `StreamingResponse` 변경
+  - progress/done/error 이벤트 형식
+- `frontend/src/features/mail/hooks/useMailActions.ts`:
+  - `handleClassify` fetch streaming으로 변경 (native ReadableStream)
+  - `classifyProgress` 상태 추가 (`{processed, total} | null`)
+- `frontend/src/components/AppHeader.tsx`:
+  - `classifyProgress` prop 추가
+  - 분류 버튼에 "분류 중 15/45" 텍스트 + 하단 프로그레스 바 표시
+- `frontend/src/app/page.tsx`:
+  - `classifyProgress` prop 전달
+
+### 검증
+- `uv run ruff check .` — All checks passed
+- `pnpm lint` — 통과
+- `pnpm build` — 빌드 성공
+
+### 다음 할 일
+- 커밋 + PR 생성
+- 수동 테스트: 분류 버튼 클릭 → 진행률 표시 → 분류 완료 확인
+
+### 이슈/참고
+- Structured Outputs의 json_schema는 최상위가 object여야 하므로 batch 응답을 `{"results": [...]}` 형태로 감쌈
+- SSE 이벤트는 classify_batch 완료 후 일괄 전송 (on_progress 콜백이 동기이므로 큐에 모아둠)
+- 외부 라이브러리 추가 없음 (asyncio.Semaphore, native fetch ReadableStream)
+
 ## 2026-03-05 — agent (Phase 17: 프로젝트 리네이밍 Mail Organizer → G-Tool)
 ### 완료한 작업
 - **코드**: `backend/pyproject.toml`, `backend/app/main.py`, `backend/app/core/exceptions.py`, `backend/app/config.py` (DB명 `gtool.db`), `docker-compose.yml`

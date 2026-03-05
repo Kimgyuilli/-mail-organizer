@@ -1,3 +1,4 @@
+import type { ClassifyProgress } from "@/features/mail/hooks/useMailActions";
 import { UserInfo } from "@/features/auth/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +31,7 @@ interface AppHeaderProps {
   sourceFilter: "all" | "gmail" | "naver";
   syncing: boolean;
   classifying: boolean;
+  classifyProgress: ClassifyProgress | null;
   applyingLabels: boolean;
   classifiedCount: number;
   onSync: () => void;
@@ -54,6 +56,7 @@ export function AppHeader({
   sourceFilter,
   syncing,
   classifying,
+  classifyProgress,
   applyingLabels,
   classifiedCount,
   onSync,
@@ -162,11 +165,24 @@ export function AppHeader({
           size="sm"
           onClick={onClassify}
           disabled={classifying}
+          className="relative"
         >
-          <Sparkles className="h-4 w-4" />
+          <Sparkles className={cn("h-4 w-4", classifying && "animate-pulse")} />
           <span className="hidden sm:inline">
-            {classifying ? "분류 중" : "AI 분류"}
+            {classifying
+              ? classifyProgress
+                ? `분류 중 ${classifyProgress.processed}/${classifyProgress.total}`
+                : "분류 중"
+              : "AI 분류"}
           </span>
+          {classifying && classifyProgress && classifyProgress.total > 0 && (
+            <span
+              className="absolute bottom-0 left-0 h-0.5 bg-primary transition-all duration-300"
+              style={{
+                width: `${(classifyProgress.processed / classifyProgress.total) * 100}%`,
+              }}
+            />
+          )}
         </Button>
 
           {sourceFilter === "gmail" && (

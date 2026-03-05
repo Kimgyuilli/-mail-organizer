@@ -44,6 +44,7 @@ export default function Home() {
   const {
     syncing,
     classifying,
+    classifyProgress,
     applyingLabels,
     selectedMail,
     setSelectedMail,
@@ -154,6 +155,7 @@ export default function Home() {
         sourceFilter={sourceFilter}
         syncing={syncing}
         classifying={classifying}
+        classifyProgress={classifyProgress}
         applyingLabels={applyingLabels}
         classifiedCount={classifiedCount}
         onSync={handleSync}

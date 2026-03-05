@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
+from typing import Callable
 
 from openai import AsyncOpenAI
 
@@ -27,8 +29,6 @@ SYSTEM_PROMPT = """당신은 이메일 분류 전문가입니다.
 - 뉴스레터: 구독 뉴스, 블로그 업데이트
 - 알림: 서비스 알림, 비밀번호 변경, 배송 안내
 - 중요: 긴급하거나 중요한 메일
-
-응답은 반드시 아래 JSON 형식으로만 출력하세요. 다른 텍스트는 포함하지 마세요.
 """
 
 SINGLE_TEMPLATE = """\
@@ -36,34 +36,73 @@ SINGLE_TEMPLATE = """\
 - 발신자: {from_email} ({from_name})
 - 제목: {subject}
 - 본문 (일부): {body}
-
-JSON 형식으로 응답:
-{{"category": "카테고리명", "confidence": 0.0~1.0, "reason": "분류 이유 한 줄"}}"""
+"""
 
 BATCH_TEMPLATE = """\
 아래 이메일들을 각각 분류하세요.
 
-{emails_text}
-
-JSON 배열로 응답:
-[{{"index": 0, "category": "카테고리명", \
-"confidence": 0.0~1.0, "reason": "한 줄"}}, ...]"""
+{emails_text}"""
 
 MODEL = "gpt-4o-mini"
 
+SINGLE_RESPONSE_FORMAT = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "email_classification",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "category": {"type": "string"},
+                "confidence": {"type": "number"},
+                "reason": {"type": "string"},
+            },
+            "required": ["category", "confidence", "reason"],
+            "additionalProperties": False,
+        },
+    },
+}
 
-def _extract_json(text: str) -> str:
-    """Extract JSON from text that may contain markdown code fences."""
-    stripped = text.strip()
-    if stripped.startswith("```"):
-        first_newline = stripped.index("\n")
-        stripped = stripped[first_newline + 1 :]
-        if stripped.endswith("```"):
-            stripped = stripped[: -3].strip()
-    return stripped
+BATCH_RESPONSE_FORMAT = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "batch_classification",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "index": {"type": "integer"},
+                            "category": {"type": "string"},
+                            "confidence": {"type": "number"},
+                            "reason": {"type": "string"},
+                        },
+                        "required": [
+                            "index",
+                            "category",
+                            "confidence",
+                            "reason",
+                        ],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["results"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+# 최대 동시 API 호출 수
+_MAX_CONCURRENT = 3
+_semaphore = asyncio.Semaphore(_MAX_CONCURRENT)
 
 
-def _truncate_body(body: str | None, max_chars: int = 500) -> str:
+def _truncate_body(body: str | None, max_chars: int = 300) -> str:
     if not body:
         return "(본문 없음)"
     return body[:max_chars] + ("..." if len(body) > max_chars else "")
@@ -130,28 +169,72 @@ async def classify_single(
     response = await client.chat.completions.create(
         model=MODEL,
         max_tokens=256,
+        response_format=SINGLE_RESPONSE_FORMAT,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},
         ],
     )
 
-    text = _extract_json(response.choices[0].message.content)
-    return json.loads(text)
+    return json.loads(response.choices[0].message.content)
+
+
+async def _process_chunk(
+    chunk: list[dict],
+    chunk_start: int,
+    index_map: dict[int, int],
+    client: AsyncOpenAI,
+    system_prompt: str,
+) -> list[dict]:
+    """단일 청크를 처리하고 원본 인덱스로 매핑."""
+    parts = []
+    for i, mail in enumerate(chunk):
+        parts.append(
+            f"[메일 {i}]\n"
+            f"- 발신자: {mail.get('from_email', '')} "
+            f"({mail.get('from_name', '')})\n"
+            f"- 제목: {mail.get('subject', '(제목 없음)')}\n"
+            f"- 본문: {_truncate_body(mail.get('body'))}"
+        )
+
+    user_message = BATCH_TEMPLATE.format(emails_text="\n\n".join(parts))
+
+    async with _semaphore:
+        response = await client.chat.completions.create(
+            model=MODEL,
+            max_tokens=4096,
+            response_format=BATCH_RESPONSE_FORMAT,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        )
+
+    parsed = json.loads(response.choices[0].message.content)
+    chunk_results = parsed["results"]
+
+    for result in chunk_results:
+        ai_index = result.get("index", 0)
+        key = chunk_start + ai_index
+        original_index = index_map.get(key, key)
+        result["index"] = original_index
+
+    return chunk_results
 
 
 async def classify_batch(
     emails: list[dict],
     feedback_examples: list[dict] | None = None,
     sender_rules: dict[str, str] | None = None,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> list[dict]:
-    """Classify multiple emails in a single API call."""
+    """Classify multiple emails with parallel chunk processing."""
     if not emails:
         return []
 
     auto_classified = []
     needs_ai = []
-    index_map = {}
+    index_map: dict[int, int] = {}
 
     for i, mail in enumerate(emails):
         from_email = mail.get("from_email", "")
@@ -166,6 +249,11 @@ async def classify_batch(
             index_map[len(needs_ai)] = i
             needs_ai.append(mail)
 
+    total = len(emails)
+
+    if auto_classified and on_progress:
+        on_progress(len(auto_classified), total)
+
     if not needs_ai:
         return auto_classified
 
@@ -176,42 +264,27 @@ async def classify_batch(
         feedback_section = _build_feedback_section(feedback_examples)
         system_prompt = f"{SYSTEM_PROMPT}\n\n{feedback_section}"
 
-    chunk_size = 10
-    ai_results = []
+    chunk_size = 15
+    ai_results: list[dict] = []
 
+    # 청크별 코루틴 생성
+    tasks = []
+    chunk_starts = []
     for chunk_start in range(0, len(needs_ai), chunk_size):
         chunk = needs_ai[chunk_start : chunk_start + chunk_size]
-
-        parts = []
-        for i, mail in enumerate(chunk):
-            parts.append(
-                f"[메일 {i}]\n"
-                f"- 발신자: {mail.get('from_email', '')} "
-                f"({mail.get('from_name', '')})\n"
-                f"- 제목: {mail.get('subject', '(제목 없음)')}\n"
-                f"- 본문: {_truncate_body(mail.get('body'))}"
-            )
-
-        user_message = BATCH_TEMPLATE.format(emails_text="\n\n".join(parts))
-
-        response = await client.chat.completions.create(
-            model=MODEL,
-            max_tokens=4096,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
+        tasks.append(
+            _process_chunk(chunk, chunk_start, index_map, client, system_prompt)
         )
+        chunk_starts.append(chunk_start)
 
-        text = _extract_json(response.choices[0].message.content)
-        chunk_results = json.loads(text)
-
-        for result in chunk_results:
-            ai_index = result.get("index", 0)
-            key = chunk_start + ai_index
-            original_index = index_map.get(key, key)
-            result["index"] = original_index
+    # 병렬 처리 + 진행률 콜백
+    processed = len(auto_classified)
+    for coro in asyncio.as_completed(tasks):
+        chunk_results = await coro
         ai_results.extend(chunk_results)
+        processed += len(chunk_results)
+        if on_progress:
+            on_progress(processed, total)
 
     all_results = auto_classified + ai_results
     all_results.sort(key=lambda x: x.get("index", 0))

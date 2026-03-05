@@ -4,6 +4,14 @@ import { apiFetch } from "@/lib/api";
 import type { MailMessage, MailDetail } from "@/features/mail/types";
 import type { UserInfo } from "@/features/auth/types";
 
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+export interface ClassifyProgress {
+  processed: number;
+  total: number;
+}
+
 interface UseMailActionsProps {
   userId: number | null;
   userInfo: UserInfo | null;
@@ -27,6 +35,8 @@ export function useMailActions({
 }: UseMailActionsProps) {
   const [syncing, setSyncing] = useState(false);
   const [classifying, setClassifying] = useState(false);
+  const [classifyProgress, setClassifyProgress] =
+    useState<ClassifyProgress | null>(null);
   const [applyingLabels, setApplyingLabels] = useState(false);
   const [selectedMail, setSelectedMail] = useState<MailDetail | null>(null);
   const [editingMailId, setEditingMailId] = useState<number | null>(null);
@@ -67,19 +77,66 @@ export function useMailActions({
   const handleClassify = useCallback(async () => {
     if (!userId) return;
     setClassifying(true);
+    setClassifyProgress(null);
+
     try {
-      const sourceParam = sourceFilter === "all" ? "" : `&source=${sourceFilter}`;
-      const result = await apiFetch<{
-        classified: number;
-        results: { mail_id: number; category: string }[];
-      }>(`/api/classify/mails?user_id=${userId}${sourceParam}`, { method: "POST" });
-      toast.success(`${result.classified}개의 메일이 분류되었습니다.`);
+      const sourceParam =
+        sourceFilter === "all" ? "" : `&source=${sourceFilter}`;
+      const url = `${API_BASE_URL}/api/classify/mails?user_id=${userId}${sourceParam}`;
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("Stream not supported");
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let classified = 0;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        // 마지막 줄은 불완전할 수 있으므로 보관
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = JSON.parse(line.slice(6));
+
+          if (data.type === "progress") {
+            setClassifyProgress({
+              processed: data.processed,
+              total: data.total,
+            });
+          } else if (data.type === "done") {
+            classified = data.classified;
+          } else if (data.type === "error") {
+            throw new Error(data.message);
+          }
+        }
+      }
+
+      toast.success(`${classified}개의 메일이 분류되었습니다.`);
       await loadMessages();
       await loadCategoryCounts();
     } catch (err) {
       toast.error(`분류 실패: ${err}`);
     } finally {
       setClassifying(false);
+      setClassifyProgress(null);
     }
   }, [userId, sourceFilter, loadMessages, loadCategoryCounts]);
 
@@ -182,6 +239,7 @@ export function useMailActions({
   return {
     syncing,
     classifying,
+    classifyProgress,
     applyingLabels,
     selectedMail,
     setSelectedMail,
