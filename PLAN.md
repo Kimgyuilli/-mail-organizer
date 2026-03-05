@@ -206,3 +206,10 @@
 | AddBookmarkModal/AddCategoryModal | frontend-dev | done | types | Dialog 컴포넌트 |
 | BookmarkContext + BookmarkPage | frontend-dev | done | 위 전체 | Provider + 레이아웃 |
 | page.tsx + AppHeader 연동 | frontend-dev | done | BookmarkPage | nav에 북마크 탭 추가 |
+
+## Phase 15: 캘린더 동기화(새로고침) 버튼 추가
+
+| 태스크 | 담당 | 상태 | 의존 | 비고 |
+|--------|------|------|------|------|
+| CalendarSidebar에 RefreshCw 버튼 추가 | frontend-dev | done | — | onRefresh, refreshing props |
+| CalendarPage에 handleRefresh 로직 추가 | frontend-dev | done | — | loadCalendars + loadEvents + toast |

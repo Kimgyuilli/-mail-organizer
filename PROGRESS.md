@@ -2,6 +2,21 @@
 
 > v1 (Phase 0~5) 기록 아카이브: [PROGRESS_V1.md](./PROGRESS_V1.md)
 
+## 2026-03-05 — agent (Phase 15: 캘린더 동기화 버튼 추가)
+### 완료한 작업
+- `frontend/src/features/calendar/components/CalendarSidebar.tsx`: `onRefresh`, `refreshing` props 추가, "오늘" 버튼 옆에 RefreshCw 동기화 버튼 배치, refreshing 시 animate-spin + disabled
+- `frontend/src/features/calendar/CalendarPage.tsx`: `refreshing` state + `handleRefresh` 함수 추가 (loadCalendars → loadEvents → toast 알림), CalendarSidebar에 props 전달
+
+### 검증
+- ESLint — 통과
+- `next build` — 빌드 성공
+
+### 다음 할 일
+- 커밋 + PR 생성
+
+### 이슈/참고
+- `.next/dev/types/routes.d.ts` 캐시 파일 빌드 에러 → `.next` 삭제 후 클린 빌드로 해결
+
 ## 2026-03-05 — agent (Phase 14: 북마크 기능 추가)
 ### 완료한 작업
 **백엔드 (14-1)**

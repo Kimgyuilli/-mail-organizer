@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import type { CalendarInfo } from "@/features/calendar/types";
 
 interface CalendarSidebarProps {
@@ -10,6 +10,8 @@ interface CalendarSidebarProps {
   onPrevMonth: () => void;
   onNextMonth: () => void;
   onToday: () => void;
+  onRefresh: () => void;
+  refreshing: boolean;
 }
 
 export function CalendarSidebar({
@@ -20,6 +22,8 @@ export function CalendarSidebar({
   onPrevMonth,
   onNextMonth,
   onToday,
+  onRefresh,
+  refreshing,
 }: CalendarSidebarProps) {
   const monthLabel = currentDate.toLocaleDateString("ko-KR", {
     year: "numeric",
@@ -39,9 +43,20 @@ export function CalendarSidebar({
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <Button variant="outline" size="sm" className="w-full" onClick={onToday}>
-          오늘
-        </Button>
+        <div className="flex gap-1">
+          <Button variant="outline" size="sm" className="flex-1" onClick={onToday}>
+            오늘
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={onRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
       </div>
 
       {/* Calendar list */}
