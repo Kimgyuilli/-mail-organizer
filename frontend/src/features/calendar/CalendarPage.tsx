@@ -28,6 +28,8 @@ export function CalendarPage({ userId }: CalendarPageProps) {
     selectedCalendarIds,
     loading,
     currentDate,
+    loadCalendars,
+    loadEvents,
     toggleCalendar,
     goToPrevMonth,
     goToNextMonth,
@@ -38,6 +40,20 @@ export function CalendarPage({ userId }: CalendarPageProps) {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createDefaultDate, setCreateDefaultDate] = useState<Date | undefined>();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadCalendars();
+      await loadEvents();
+      toast.success("캘린더를 새로고침했습니다");
+    } catch {
+      toast.error("캘린더 새로고침에 실패했습니다");
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleSelectDate = (date: Date) => {
     setCreateDefaultDate(date);
@@ -86,6 +102,8 @@ export function CalendarPage({ userId }: CalendarPageProps) {
             onPrevMonth={goToPrevMonth}
             onNextMonth={goToNextMonth}
             onToday={goToToday}
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
           />
         </div>
       </aside>
