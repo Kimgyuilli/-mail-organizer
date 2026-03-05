@@ -29,5 +29,8 @@ class Settings(BaseSettings):
     sync_interval_minutes: int = 15
     auto_classify: bool = True
 
+    # Error Bot
+    error_bot_url: str = ""
+
 
 settings = Settings()
