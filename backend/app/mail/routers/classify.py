@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 
@@ -152,31 +153,43 @@ async def _classify_stream(
     feedback_examples: list[dict],
     sender_rules: dict[str, str],
 ) -> AsyncIterator[str]:
-    """SSE 스트림으로 분류 진행률을 전송."""
-    # 진행률 콜백 — SSE 이벤트를 큐에 넣음
-    progress_events: list[dict] = []
+    """SSE 스트림으로 분류 진행률을 실시간 전송."""
+    queue: asyncio.Queue[dict | None] = asyncio.Queue()
 
     def on_progress(processed: int, total_count: int) -> None:
-        progress_events.append({
+        queue.put_nowait({
             "type": "progress",
             "processed": processed,
             "total": total_count,
         })
 
-    try:
-        classifications = await classify_batch(
-            email_dicts,
-            feedback_examples=feedback_examples,
-            sender_rules=sender_rules,
-            on_progress=on_progress,
-        )
-    except Exception as exc:
-        yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
-        return
+    async def _run_classify() -> list[dict]:
+        try:
+            result = await classify_batch(
+                email_dicts,
+                feedback_examples=feedback_examples,
+                sender_rules=sender_rules,
+                on_progress=on_progress,
+            )
+            return result
+        except Exception as exc:
+            queue.put_nowait({"type": "error", "message": str(exc)})
+            return []
+        finally:
+            queue.put_nowait(None)  # sentinel
 
-    # 진행률 이벤트 전송
-    for evt in progress_events:
+    task = asyncio.create_task(_run_classify())
+
+    # 실시간으로 진행률 이벤트를 yield
+    while True:
+        evt = await queue.get()
+        if evt is None:
+            break
         yield f"data: {json.dumps(evt)}\n\n"
+        if evt.get("type") == "error":
+            return
+
+    classifications = await task
 
     # DB 저장
     await _ensure_default_labels(db, user_id)
