@@ -262,3 +262,37 @@
 | classify_batch에 on_progress 콜백 | backend-dev | done | 18-2 | classifier.py |
 | POST /api/classify/mails SSE 변경 | backend-dev | done | on_progress | classify.py |
 | 프론트엔드 fetch streaming + 진행률 UI | frontend-dev | done | SSE 엔드포인트 | useMailActions, AppHeader, page.tsx |
+
+## Phase 19: 500 Error Auto-Fix Bot
+
+> 프로덕션 500 에러 발생 시 Discord 알림 + AI 분석 + 자동 수정 PR 생성. 기존 500-pr-bot을 Python/FastAPI 환경에 맞게 이식.
+
+### 19-1. error-bot 코드 이식 (bot/ 디렉토리)
+
+| 태스크 | 담당 | 상태 | 의존 | 비고 |
+|--------|------|------|------|------|
+| bot/ 디렉토리 복사 + 불필요 파일 제거 | agent | done | — | static/, admin.py, errors.py, test_runner.py 제거 |
+| stack_trace_parser.py Python traceback 파서로 재작성 | agent | done | T1 | Java → Python 파서 |
+| ai_service.py 프롬프트 수정 | agent | done | T1 | Spring Boot → FastAPI+Next.js |
+| config.py 환경변수 수정 | agent | done | T1 | base_package → project_root |
+| pipeline.py 수정 | agent | done | T2,T4 | 파서 호출부 변경 |
+| .env.example 업데이트 | agent | done | T4 | G-Tool 환경변수 |
+
+### 19-2. G-Tool 백엔드 — 500 에러 리포터 미들웨어
+
+| 태스크 | 담당 | 상태 | 의존 | 비고 |
+|--------|------|------|------|------|
+| error_reporter.py 미들웨어 생성 | agent | done | — | 500 에러 → error-bot POST |
+| main.py + config.py 미들웨어 등록 | agent | done | T7 | error_bot_url 설정 |
+
+### 19-3. Docker Compose + 배포 설정
+
+| 태스크 | 담당 | 상태 | 의존 | 비고 |
+|--------|------|------|------|------|
+| docker-compose.yml error-bot 서비스 추가 | agent | done | 19-1 | 내부 통신 전용 |
+
+### 19-4. 테스트 + 검증
+
+| 태스크 | 담당 | 상태 | 의존 | 비고 |
+|--------|------|------|------|------|
+| 테스트 수정 + lint 검증 | agent | done | 19-1,19-2 | 58 passed, ruff clean |

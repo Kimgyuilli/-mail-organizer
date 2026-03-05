@@ -7,6 +7,7 @@ services:
       - FRONTEND_URL=https://${DOMAIN}
       - GOOGLE_REDIRECT_URI=https://${DOMAIN}/api/auth/callback
       - DATABASE_URL=sqlite+aiosqlite:///./data/gtool.db
+      - ERROR_BOT_URL=http://error-bot:8001
     volumes:
       - db-data:/app/data
     command: >
@@ -14,6 +15,8 @@ services:
       --host 0.0.0.0 --port 8000
     expose:
       - "8000"
+    depends_on:
+      - error-bot
 
   frontend:
     build:
@@ -23,6 +26,16 @@ services:
     restart: unless-stopped
     expose:
       - "3000"
+
+  error-bot:
+    build: ./bot
+    restart: unless-stopped
+    env_file: ./bot/.env
+    expose:
+      - "8001"
+    volumes:
+      - .:/workspace/source:ro
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001
 
   caddy:
     image: caddy:2-alpine

@@ -2,6 +2,52 @@
 
 > v1 (Phase 0~5) 기록 아카이브: [PROGRESS_V1.md](./PROGRESS_V1.md)
 
+## 2026-03-06 — agent (Phase 19: 500 Error Auto-Fix Bot)
+### 완료한 작업
+**19-1. error-bot 코드 이식 (bot/ 디렉토리)**
+- `bot/` 전체 디렉토리: 500-pr-bot에서 복사 후 불필요 파일 제거 (static/, admin.py, errors.py, test_runner.py)
+- `bot/app/main.py`: 대시보드, static mount, admin/errors 라우터 제거 → health + webhook만 유지
+- `bot/app/utils/stack_trace_parser.py`: Java traceback → Python traceback 파서로 전면 재작성
+  - 정규식: `r'File "([^"]+)", line (\d+), in (\w+)'`
+  - `extract_related_imports`: `from app.xxx import` / `import app.xxx` Python 패턴
+- `bot/app/services/ai_service.py`: SYSTEM_PROMPT "Spring Boot" → "FastAPI + Next.js", 코드 블록 언어 태그 동적 결정 (`_get_lang_tag`)
+- `bot/app/config.py`: `base_package` → `project_root`, 기본 포트 8001
+- `bot/app/pipeline.py`: 파서 호출부 `settings.project_root` 사용
+- `bot/app/routers/webhook.py`: test-webhook 샘플을 Python traceback으로 변경
+- `bot/.env.example`: G-Tool 환경변수로 업데이트
+- `bot/Dockerfile`: 기본 포트 8001
+
+**19-2. G-Tool 백엔드 — 500 에러 리포터 미들웨어**
+- `backend/app/core/error_reporter.py`: 신규 — ErrorReporterMiddleware (500 에러 시 error-bot POST)
+- `backend/app/config.py`: `error_bot_url: str = ""` 추가
+- `backend/app/main.py`: error_bot_url 설정 시 ErrorReporterMiddleware 등록
+
+**19-3. Docker Compose**
+- `docker-compose.yml`: error-bot 서비스 추가 (포트 8001, .:/workspace/source:ro 볼륨)
+- backend 서비스에 `ERROR_BOT_URL=http://error-bot:8001` + `depends_on: error-bot`
+
+**19-4. 테스트 수정**
+- `bot/tests/conftest.py`: `BASE_PACKAGE` → `PROJECT_ROOT`, sample_error_report Python traceback
+- `bot/tests/test_stack_trace_parser.py`: Python traceback 테스트 10개로 전면 교체
+- `bot/tests/test_pipeline.py`: Java 파일 경로 → Python 파일 경로
+- `bot/tests/test_test_runner.py`: 삭제 (test_runner.py 제거됨)
+
+### 검증
+- `cd bot && python -m pytest tests/ -v` — **58 passed** in 0.61s
+- `cd backend && uv run ruff check .` — All checks passed
+
+### 다음 할 일
+- 커밋 + PR 생성
+- 배포 서버에서 `bot/.env` 설정 (OPENAI_API_KEY, GITHUB_TOKEN, DISCORD_WEBHOOK_URL 등)
+- `docker compose up --build` 통합 테스트
+- `curl http://localhost:8001/health` 헬스체크
+- `curl -X POST http://localhost:8001/api/test-webhook` 테스트 에러 전송 검증
+
+### 이슈/참고
+- error-bot은 Docker 내부 전용 (포트 8001), 외부 노출 없음
+- `ERROR_BOT_URL` 빈 문자열이면 미들웨어 비활성 (로컬 개발 시 영향 없음)
+- SOURCE_MODE=local + 볼륨 마운트로 소스코드 접근 (GitHub API 호출 불필요)
+
 ## 2026-03-05 — agent (Phase 18: 메일 분류 시스템 최적화)
 ### 완료한 작업
 **1단계: 토큰 최적화 + JSON 안정성**
