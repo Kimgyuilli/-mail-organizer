@@ -205,7 +205,7 @@ def _parse_message(raw: dict) -> dict[str, Any]:
     is_read = "UNREAD" not in label_ids
 
     return {
-        "external_id": raw["id"],
+        "external_id": raw.get("id", ""),
         "from_email": from_email,
         "from_name": from_name,
         "subject": subject,
