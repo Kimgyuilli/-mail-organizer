@@ -20,7 +20,7 @@ async def test_process_error_full_flow(sample_error_report, mock_discord):
         "summary": "AttributeError 수정",
     }
     with (
-        patch("app.pipeline.fetch_files", return_value={FILE_PATH: "code"}),
+        patch("app.pipeline.read_files", return_value={FILE_PATH: "code"}),
         patch("app.pipeline.analyze_error", return_value=ai_result),
         patch("app.pipeline.create_pull_request", return_value="https://github.com/pr/1"),
     ):
@@ -33,7 +33,7 @@ async def test_process_error_full_flow(sample_error_report, mock_discord):
 
 async def test_process_error_skips_duplicate(sample_error_report, mock_discord):
     with (
-        patch("app.pipeline.fetch_files", return_value={FILE_PATH: "code"}),
+        patch("app.pipeline.read_files", return_value={FILE_PATH: "code"}),
         patch("app.pipeline.analyze_error", return_value={"analysis": "", "root_cause": "", "fix_description": "", "files": [], "summary": "s"}),
         patch("app.pipeline.create_pull_request", return_value="url"),
     ):
@@ -60,7 +60,7 @@ async def test_process_error_no_stack_entries(mock_discord):
 
 async def test_process_error_ai_failure_sends_failure_alert(sample_error_report, mock_discord):
     with (
-        patch("app.pipeline.fetch_files", return_value={FILE_PATH: "code"}),
+        patch("app.pipeline.read_files", return_value={FILE_PATH: "code"}),
         patch("app.pipeline.analyze_error", return_value=None),
     ):
         await process_error(sample_error_report)
@@ -77,7 +77,7 @@ async def test_process_error_ai_validation_failure_sends_failure_alert(sample_er
         "summary": "수정",
     }
     with (
-        patch("app.pipeline.fetch_files", return_value={FILE_PATH: "code"}),
+        patch("app.pipeline.read_files", return_value={FILE_PATH: "code"}),
         patch("app.pipeline.analyze_error", return_value=ai_result),
         patch("app.pipeline.create_pull_request", return_value="url") as mock_pr,
     ):
@@ -134,7 +134,7 @@ async def test_pr_body_contains_diff_section(sample_error_report, mock_discord):
         "summary": "수정",
     }
     with (
-        patch("app.pipeline.fetch_files", return_value={FILE_PATH: "original_code"}),
+        patch("app.pipeline.read_files", return_value={FILE_PATH: "original_code"}),
         patch("app.pipeline.analyze_error", return_value=ai_result),
         patch("app.pipeline.create_pull_request", return_value="https://github.com/pr/1") as mock_pr,
     ):
@@ -154,7 +154,7 @@ async def test_pr_body_contains_new_sections(sample_error_report, mock_discord):
         "summary": "AttributeError 수정",
     }
     with (
-        patch("app.pipeline.fetch_files", return_value={FILE_PATH: "code"}),
+        patch("app.pipeline.read_files", return_value={FILE_PATH: "code"}),
         patch("app.pipeline.analyze_error", return_value=ai_result),
         patch("app.pipeline.create_pull_request", return_value="https://github.com/pr/1") as mock_pr,
     ):
@@ -178,7 +178,7 @@ async def test_process_error_pr_failure_sends_failure_alert(sample_error_report,
         "summary": "수정",
     }
     with (
-        patch("app.pipeline.fetch_files", return_value={FILE_PATH: "code"}),
+        patch("app.pipeline.read_files", return_value={FILE_PATH: "code"}),
         patch("app.pipeline.analyze_error", return_value=ai_result),
         patch("app.pipeline.create_pull_request", side_effect=RuntimeError("fail")),
     ):

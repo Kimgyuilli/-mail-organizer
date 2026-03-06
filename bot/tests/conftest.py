@@ -17,8 +17,6 @@ from app.pipeline import _recent_errors
 _DISPLAY_NAMES = {
     # test_ai_service
     "test_analyze_error_returns_parsed_response": "AI 분석 - 정상 응답 파싱",
-    "test_analyze_error_returns_none_on_invalid_json": "AI 분석 - 잘못된 JSON이면 None 반환",
-    "test_analyze_error_retry_succeeds_on_second_attempt": "AI 분석 - 1차 실패 후 2차 재시도 성공",
     "test_analyze_error_returns_none_on_api_exception": "AI 분석 - API 예외 시 None 반환",
     # test_discord_service
     "test_send_error_alert_posts_correct_embed": "Discord 알림 - 에러 알림 전송",
@@ -40,10 +38,11 @@ _DISPLAY_NAMES = {
     "test_pr_body_contains_diff_section": "에러 처리 - PR 본문에 diff 섹션 포함",
     "test_pr_body_contains_new_sections": "에러 처리 - PR 본문에 근본 원인/수정 내용 포함",
     "test_process_error_pr_failure_sends_failure_alert": "에러 처리 - PR 생성 실패 시 실패 알림 전송",
+    # test_file_reader
+    "test_read_file_returns_content": "로컬 파일 - 내용 읽기 정상",
+    "test_read_file_returns_none_on_error": "로컬 파일 - 없는 파일 시 None",
+    "test_read_files_returns_dict_of_found_files": "로컬 파일 - 여러 파일 딕셔너리 반환",
     # test_github_service
-    "test_fetch_file_content_returns_decoded": "로컬 파일 - 내용 읽기 정상",
-    "test_fetch_file_content_returns_none_on_error": "로컬 파일 - 없는 파일 시 None",
-    "test_fetch_files_returns_dict_of_found_files": "로컬 파일 - 여러 파일 딕셔너리 반환",
     "test_create_pull_request_returns_pr_url": "GitHub PR - 생성 후 URL 반환",
     "test_create_pull_request_reuses_existing_branch": "GitHub PR - 기존 브랜치 재사용",
     # test_main
