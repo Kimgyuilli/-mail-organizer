@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import Depends, Query
+from fastapi import Depends, Header
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
