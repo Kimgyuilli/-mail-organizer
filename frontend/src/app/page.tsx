@@ -36,10 +36,10 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const { messages, setMessages, total, setTotal, offset, setOffset, loading, loadMessages } =
-    useMessages({ sourceFilter, categoryFilter, limit: LIMIT });
+    useMessages({ sourceFilter, categoryFilter, limit: LIMIT, enabled: isLoggedIn });
 
-  const { categoryCounts, loadCategoryCounts } = useCategoryCounts({ sourceFilter });
-  const { feedbackStats, loadFeedbackStats } = useFeedbackStats();
+  const { categoryCounts, loadCategoryCounts } = useCategoryCounts({ sourceFilter, enabled: isLoggedIn });
+  const { feedbackStats, loadFeedbackStats } = useFeedbackStats({ enabled: isLoggedIn });
 
   const {
     syncing,

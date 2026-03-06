@@ -16,8 +16,10 @@ function getAuthSnapshot(): AuthState {
   return authState;
 }
 
+const AUTH_SERVER_SNAPSHOT: AuthState = { userInfo: null, loading: true };
+
 function getAuthServerSnapshot(): AuthState {
-  return { userInfo: null, loading: true };
+  return AUTH_SERVER_SNAPSHOT;
 }
 
 function subscribeAuth(onStoreChange: () => void): () => void {

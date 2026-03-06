@@ -6,12 +6,14 @@ interface UseMessagesProps {
   sourceFilter: "all" | "gmail" | "naver";
   categoryFilter: string | null;
   limit: number;
+  enabled?: boolean;
 }
 
 export function useMessages({
   sourceFilter,
   categoryFilter,
   limit,
+  enabled = true,
 }: UseMessagesProps) {
   const [messages, setMessages] = useState<MailMessage[]>([]);
   const [total, setTotal] = useState(0);
@@ -40,8 +42,8 @@ export function useMessages({
   );
 
   useEffect(() => {
-    loadMessages();
-  }, [loadMessages]);
+    if (enabled) loadMessages();
+  }, [loadMessages, enabled]);
 
   return {
     messages,
