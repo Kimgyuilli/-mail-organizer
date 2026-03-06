@@ -27,9 +27,9 @@ async def test_me_success(client: AsyncClient, sample_user):
     assert data["naver_connected"] is False
 
 
-async def test_me_user_not_found(client: AsyncClient):
-    """GET /auth/me should return 404 when no cookie is provided."""
+async def test_me_not_authenticated(client: AsyncClient):
+    """GET /auth/me should return 401 when no cookie is provided."""
     response = await client.get("/auth/me")
-    assert response.status_code == 404
+    assert response.status_code == 401
     data = response.json()
-    assert "User not found" in data["detail"]
+    assert "Not authenticated" in data["detail"]

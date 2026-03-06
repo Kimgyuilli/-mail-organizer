@@ -68,9 +68,9 @@ async def test_get_gmail_message_not_found(client: AsyncClient, sample_user):
     assert "Message not found" in data["detail"]
 
 
-async def test_get_gmail_message_user_not_found(client: AsyncClient):
-    """GET /api/gmail/messages should return 404 when no cookie is provided."""
+async def test_get_gmail_message_not_authenticated(client: AsyncClient):
+    """GET /api/gmail/messages should return 401 when no cookie is provided."""
     response = await client.get("/api/gmail/messages")
-    assert response.status_code == 404
+    assert response.status_code == 401
     data = response.json()
-    assert "User not found" in data["detail"]
+    assert "Not authenticated" in data["detail"]
