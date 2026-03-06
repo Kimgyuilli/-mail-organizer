@@ -138,7 +138,6 @@ docker compose up -d --build
 
 ## 개발 과정
 
-이 프로젝트는 **Claude Code**를 활용하여 개발되었습니다.
 Phase별 작업 계획과 진행 기록은 아래 문서에서 확인할 수 있습니다.
 
 - [PLAN.md](./PLAN.md) — v2 작업 계획 (Phase 6~22)
