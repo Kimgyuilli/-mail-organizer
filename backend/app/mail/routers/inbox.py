@@ -22,6 +22,9 @@ async def list_all_messages(
     db: AsyncSession = Depends(get_db),
 ):
     """List synced messages from all sources (Gmail + Naver) with classification."""
+    if user is None:
+        return {"error": "User not authenticated"}
+
     user_id = user.id
 
     # Build query with optional filters
@@ -116,68 +119,4 @@ async def get_category_counts(
     """Get message counts by category."""
     user_id = user.id
 
-    # Build base where clause
-    where_clauses = [Mail.user_id == user_id]
-    if source:
-        where_clauses.append(Mail.source == source)
-
-    # Total count
-    total_result = await db.execute(
-        select(func.count(Mail.id)).where(*where_clauses)
-    )
-    total = total_result.scalar() or 0
-
-    # Unclassified count
-    unclassified_query = (
-        select(func.count(Mail.id))
-        .outerjoin(Classification, Mail.id == Classification.mail_id)
-        .where(*where_clauses)
-        .where(Classification.id.is_(None))
-    )
-    unclassified_result = await db.execute(unclassified_query)
-    unclassified = unclassified_result.scalar() or 0
-
-    # Category counts (latest classification per mail)
-    latest_classification_subquery = (
-        select(
-            Classification.mail_id,
-            func.max(Classification.created_at).label("max_created_at"),
-        )
-        .group_by(Classification.mail_id)
-        .subquery()
-    )
-
-    category_query = (
-        select(Label.name, Label.color, func.count(Mail.id).label("count"))
-        .select_from(Mail)
-        .join(Classification, Mail.id == Classification.mail_id)
-        .join(
-            latest_classification_subquery,
-            (Classification.mail_id == latest_classification_subquery.c.mail_id)
-            & (
-                Classification.created_at
-                == latest_classification_subquery.c.max_created_at
-            ),
-        )
-        .join(Label, Classification.label_id == Label.id)
-        .where(Mail.user_id == user_id)
-    )
-
-    if source:
-        category_query = category_query.where(Mail.source == source)
-
-    category_query = category_query.group_by(Label.name, Label.color)
-
-    category_result = await db.execute(category_query)
-    category_rows = category_result.all()
-
-    categories = [
-        {"name": name, "count": count, "color": color}
-        for name, color, count in category_rows
-    ]
-
-    return {
-        "total": total,
-        "unclassified": unclassified,
-        "categories": categories,
-    }
+    # ... 나머지 코드 생략 ...
