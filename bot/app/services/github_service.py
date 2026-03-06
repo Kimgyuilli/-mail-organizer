@@ -1,7 +1,6 @@
 import logging
-from pathlib import Path
 
-from github import Github, GithubException
+from github import Github, GithubException, InputGitTreeElement
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from app.config import settings
@@ -29,26 +28,6 @@ def health_check() -> dict:
         return {"status": "error", "detail": str(e)}
 
 
-def fetch_file_content(file_path: str) -> str | None:
-    """로컬 소스에서 파일 내용을 읽는다. 없으면 None."""
-    try:
-        full = Path(settings.local_source_path) / file_path
-        return full.read_text(encoding="utf-8")
-    except Exception:
-        return None
-
-
-@retry(stop=stop_after_attempt(2), wait=wait_fixed(2), reraise=True)
-def fetch_files(file_paths: list[str]) -> dict[str, str]:
-    """여러 파일을 조회해서 {경로: 내용} 딕셔너리로 반환한다."""
-    results = {}
-    for path in file_paths:
-        content = fetch_file_content(path)
-        if content is not None:
-            results[path] = content
-    return results
-
-
 @retry(stop=stop_after_attempt(2), wait=wait_fixed(2), reraise=True)
 def create_pull_request(
     files: list[dict],
@@ -56,11 +35,11 @@ def create_pull_request(
     pr_body: str,
     branch_name: str,
 ) -> str:
-    """브랜치 생성 → 파일 커밋 → PR 생성. PR URL 반환."""
+    """브랜치 생성 → atomic 커밋 (Git Tree API) → PR 생성. PR URL 반환."""
     repo = _get_repo()
     base_branch = settings.github_base_branch
 
-    # 1. base 브랜치의 최신 SHA 가져오기
+    # 1. base 브랜치의 최신 SHA
     base_ref = repo.get_git_ref(f"heads/{base_branch}")
     base_sha = base_ref.object.sha
 
@@ -73,16 +52,23 @@ def create_pull_request(
         else:
             raise
 
-    # 3. 수정된 파일 커밋
-    for f in files:
-        existing = repo.get_contents(f["path"], ref=branch_name)
-        repo.update_file(
-            path=f["path"],
-            message=f"fix: {summary}",
-            content=f["content"],
-            sha=existing.sha,
-            branch=branch_name,
+    # 3. Git Tree API로 atomic 커밋 (파일 수와 무관하게 1회 커밋)
+    tree_elements = [
+        InputGitTreeElement(
+            path=f["path"], mode="100644", type="blob", content=f["content"]
         )
+        for f in files
+    ]
+    base_tree = repo.get_git_tree(base_sha)
+    new_tree = repo.create_git_tree(tree_elements, base_tree)
+
+    parent_commit = repo.get_git_commit(base_sha)
+    new_commit = repo.create_git_commit(
+        f"fix: {summary}", new_tree, [parent_commit]
+    )
+
+    branch_ref = repo.get_git_ref(f"heads/{branch_name}")
+    branch_ref.edit(new_commit.sha)
 
     # 4. PR 생성
     pr = repo.create_pull(

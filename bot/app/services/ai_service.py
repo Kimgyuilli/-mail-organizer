@@ -2,7 +2,7 @@ import json
 import logging
 import os
 
-from app.services.ai_provider import get_provider
+from app.services.ai_provider import call_ai
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +26,38 @@ USER_PROMPT_TEMPLATE = """\
 ## 지시사항
 1. 에러 원인을 분석하라
 2. 수정이 필요한 파일의 전체 코드를 제공하라
-3. 수정 사항을 설명하라
+3. 수정 사항을 설명하라"""
 
-아래 JSON 형식으로만 응답하라:
-{{"analysis": "에러 원인 상세 분석", "root_cause": "근본 원인 한 줄 요약", "fix_description": "수정 내용 상세 설명 (마크다운)", "files": [{{"path": "파일 경로", "content": "수정된 전체 코드"}}], "summary": "변경 사항 요약 (PR 제목용, 한 줄)"}}"""
+RESPONSE_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "error_fix",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "analysis": {"type": "string"},
+                "root_cause": {"type": "string"},
+                "fix_description": {"type": "string"},
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string"},
+                            "content": {"type": "string"},
+                        },
+                        "required": ["path", "content"],
+                        "additionalProperties": False,
+                    },
+                },
+                "summary": {"type": "string"},
+            },
+            "required": ["analysis", "root_cause", "fix_description", "files", "summary"],
+            "additionalProperties": False,
+        },
+    },
+}
 
 
 def _get_lang_tag(file_path: str) -> str:
@@ -97,31 +125,9 @@ def analyze_error(
         source_code_section=_build_source_section(error_files, context_files or {}),
     )
 
-    provider = get_provider()
-
-    # 1차 시도
     try:
-        text = provider.call(SYSTEM_PROMPT, user_prompt)
+        text = call_ai(SYSTEM_PROMPT, user_prompt, response_format=RESPONSE_SCHEMA)
         return json.loads(text)
-    except (json.JSONDecodeError, IndexError, KeyError) as e:
-        logger.warning("1차 AI 응답 파싱 실패, 재시도: %s", e)
     except Exception:
         logger.exception("AI API 호출 실패")
-        return None
-
-    # 2차 시도: 피드백 포함
-    retry_prompt = (
-        user_prompt + "\n\n## 주의\n"
-        "이전 응답이 유효한 JSON이 아니었다. "
-        "반드시 위에 명시된 JSON 형식으로만 응답하라. "
-        "JSON 외의 텍스트를 절대 포함하지 마라."
-    )
-    try:
-        text = provider.call(SYSTEM_PROMPT, retry_prompt)
-        return json.loads(text)
-    except (json.JSONDecodeError, IndexError, KeyError) as e:
-        logger.error("2차 AI 응답 파싱도 실패: %s", e)
-        return None
-    except Exception:
-        logger.exception("AI API 재시도 호출 실패")
         return None

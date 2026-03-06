@@ -7,12 +7,26 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-_client = httpx.AsyncClient()
+_client: httpx.AsyncClient | None = None
+
+
+def init_client() -> None:
+    global _client
+    _client = httpx.AsyncClient()
+
+
+async def close_client() -> None:
+    global _client
+    if _client:
+        await _client.aclose()
+        _client = None
 
 
 async def health_check() -> dict:
     """Discord webhook 연결 상태 확인."""
     try:
+        if _client is None:
+            return {"status": "error", "detail": "client not initialized"}
         response = await _client.head(settings.discord_webhook_url)
         response.raise_for_status()
         return {"status": "ok"}
@@ -21,6 +35,8 @@ async def health_check() -> dict:
 
 
 async def _post_webhook(payload: dict) -> None:
+    if _client is None:
+        raise RuntimeError("httpx client not initialized")
     response = await _client.post(settings.discord_webhook_url, json=payload)
     response.raise_for_status()
 
@@ -28,7 +44,7 @@ async def _post_webhook(payload: dict) -> None:
 @retry(stop=stop_after_attempt(2), wait=wait_fixed(1), reraise=True)
 async def send_error_alert(report) -> None:
     embed = {
-        "title": "🚨 500 에러 발생",
+        "title": "\U0001f6a8 500 에러 발생",
         "color": 0xFF0000,
         "fields": [
             {"name": "에러 타입", "value": report.errorType, "inline": True},
@@ -43,7 +59,7 @@ async def send_error_alert(report) -> None:
 @retry(stop=stop_after_attempt(2), wait=wait_fixed(1), reraise=True)
 async def send_pr_alert(pr_url: str, summary: str) -> None:
     embed = {
-        "title": "✅ 자동 수정 PR 생성",
+        "title": "\u2705 자동 수정 PR 생성",
         "color": 0x00FF00,
         "fields": [
             {"name": "변경 사항", "value": summary[:1024]},
@@ -56,7 +72,7 @@ async def send_pr_alert(pr_url: str, summary: str) -> None:
 @retry(stop=stop_after_attempt(2), wait=wait_fixed(1), reraise=True)
 async def send_failure_alert(report, reason: str) -> None:
     embed = {
-        "title": "⚠️ 에러 자동 수정 실패",
+        "title": "\u26a0\ufe0f 에러 자동 수정 실패",
         "color": 0xFFA500,
         "fields": [
             {"name": "에러 타입", "value": report.errorType, "inline": True},

@@ -5,11 +5,12 @@ import time
 from datetime import datetime, timezone
 from functools import partial
 
+from app.config import settings
 from app.schemas import ErrorReport
 from app.services.ai_service import analyze_error, validate_ai_result
-from app.config import settings
 from app.services.discord_service import send_error_alert, send_failure_alert, send_pr_alert
-from app.services.github_service import create_pull_request, fetch_files
+from app.services.file_reader import read_files
+from app.services.github_service import create_pull_request
 from app.services.pr_builder import build_pr_body
 from app.utils.stack_trace_parser import extract_related_imports, parse_stack_trace
 
@@ -52,10 +53,9 @@ async def process_error(report: ErrorReport) -> None:
             logger.warning("스택트레이스에서 프로젝트 코드를 찾지 못함")
             return
 
-        # 3. 소스코드 조회 (동기 → run_in_executor)
+        # 3. 소스코드 조회 (로컬 파일 읽기 — 빠르므로 executor 불필요)
         file_paths = [e["file"] for e in entries]
-        loop = asyncio.get_running_loop()
-        files = await loop.run_in_executor(None, partial(fetch_files, file_paths))
+        files = read_files(file_paths)
         if not files:
             logger.warning("파일을 조회하지 못함: %s", file_paths)
             return
@@ -72,11 +72,11 @@ async def process_error(report: ErrorReport) -> None:
             new_paths = list(dict.fromkeys(p for p in new_paths if p not in all_files))
             if not new_paths:
                 break
-            new_files = await loop.run_in_executor(None, partial(fetch_files, new_paths))
-            all_files.update(new_files)
+            all_files.update(read_files(new_paths))
         context_files = {k: v for k, v in all_files.items() if k not in error_files}
 
-        # 4. AI API로 분석 (동기 → run_in_executor)
+        # 4. AI API로 분석 (네트워크 호출 — executor 사용)
+        loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
             None,
             partial(
@@ -114,7 +114,7 @@ async def process_error(report: ErrorReport) -> None:
         # 6. PR 본문 생성
         pr_body = build_pr_body(report, result, original_files={**error_files, **context_files})
 
-        # 7. GitHub PR 생성 (동기 → run_in_executor)
+        # 7. GitHub PR 생성 (네트워크 호출 — executor 사용)
         try:
             pr_url = await loop.run_in_executor(
                 None,
