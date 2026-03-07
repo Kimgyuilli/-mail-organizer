@@ -343,6 +343,10 @@ def _parse_date(date_str: str) -> datetime | None:
 # ---------------------------------------------------------------------------
 
 
+from app.core.security import decrypt_value
+from app.mail.models import Mail, SyncState
+
+
 async def sync_naver_messages(
     db: AsyncSession,
     user: User,
@@ -354,7 +358,6 @@ async def sync_naver_messages(
     """Sync Naver IMAP messages and save new ones to DB."""
     from sqlalchemy import select
 
-    from app.mail.models import Mail, SyncState
     from app.mail.services.helpers import filter_new_external_ids
 
     sync_result = await db.execute(
@@ -367,15 +370,23 @@ async def sync_naver_messages(
     since_uid = sync_state.last_uid if sync_state else None
 
     # Fetch messages from IMAP
-    result = await fetch_messages(
-        host,
-        port,
-        user.naver_email,
-        user.naver_app_password,
-        folder=folder,
-        since_uid=since_uid,
-        max_results=max_results,
-    )
+    import imaplib
+    from app.core.exceptions import ExternalServiceException, IMAPAuthenticationException
+
+    try:
+        result = await fetch_messages(
+            host,
+            port,
+            user.naver_email,
+            decrypt_value(user.naver_app_password),
+            folder=folder,
+            since_uid=since_uid,
+            max_results=max_results,
+        )
+    except imaplib.IMAP4.error as exc:
+        raise IMAPAuthenticationException(detail=f"네이버 IMAP 인증 실패: {exc}")
+    except (TimeoutError, OSError) as exc:
+        raise ExternalServiceException(detail=f"네이버 IMAP 서버 연결 실패: {exc}")
 
     messages = result["messages"]
     last_uid = result["last_uid"]

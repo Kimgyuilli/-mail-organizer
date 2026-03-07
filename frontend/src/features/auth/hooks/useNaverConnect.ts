@@ -42,6 +42,20 @@ export function useNaverConnect({
     }
   }, [naverEmail, naverPassword, setUserInfo, loadCategoryCounts]);
 
+  const handleDisconnectNaver = useCallback(async () => {
+    try {
+      await apiFetch("/api/naver/disconnect", {
+        method: "DELETE",
+      });
+      toast.success("네이버 메일 연결이 해제되었습니다.");
+      const updatedInfo = await apiFetch<UserInfo>("/auth/me");
+      setUserInfo(updatedInfo);
+      await loadCategoryCounts();
+    } catch (err) {
+      toast.error(`네이버 연결 해제 실패: ${err}`);
+    }
+  }, [setUserInfo, loadCategoryCounts]);
+
   const closeNaverConnect = useCallback(() => {
     setShowNaverConnect(false);
     setNaverEmail("");
@@ -57,6 +71,7 @@ export function useNaverConnect({
     setNaverPassword,
     connectingNaver,
     handleConnectNaver,
+    handleDisconnectNaver,
     closeNaverConnect,
   };
 }

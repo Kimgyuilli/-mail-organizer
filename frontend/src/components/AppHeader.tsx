@@ -39,6 +39,7 @@ interface AppHeaderProps {
   onApplyLabels: () => void;
   onLogout: () => void;
   onNaverConnect: () => void;
+  onNaverDisconnect: () => void;
   onSourceFilterChange: (source: "all" | "gmail" | "naver") => void;
   onMobileMenuToggle?: () => void;
 }
@@ -64,6 +65,7 @@ export function AppHeader({
   onApplyLabels,
   onLogout,
   onNaverConnect,
+  onNaverDisconnect,
   onSourceFilterChange,
   onMobileMenuToggle,
 }: AppHeaderProps) {
@@ -217,17 +219,24 @@ export function AppHeader({
               </p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {userInfo && !userInfo.naver_connected && (
+            {userInfo && (
               <>
-                <DropdownMenuItem onClick={onNaverConnect}>
-                  <Link className="h-4 w-4" />
-                  네이버 메일 연결
-                </DropdownMenuItem>
+                {!userInfo.naver_connected ? (
+                  <DropdownMenuItem onClick={onNaverConnect}>
+                    <Link className="h-4 w-4 mr-2" />
+                    네이버 메일 연결
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={onNaverDisconnect} className="text-destructive">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    네이버 연결 해제
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
               </>
             )}
             <DropdownMenuItem onClick={onLogout}>
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-4 w-4 mr-2" />
               로그아웃
             </DropdownMenuItem>
           </DropdownMenuContent>

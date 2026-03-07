@@ -72,6 +72,7 @@ export default function Home() {
     setNaverPassword,
     connectingNaver,
     handleConnectNaver,
+    handleDisconnectNaver,
     closeNaverConnect,
   } = useNaverConnect({ setUserInfo, loadCategoryCounts });
 
@@ -161,6 +162,7 @@ export default function Home() {
         onApplyLabels={handleApplyLabels}
         onLogout={onLogout}
         onNaverConnect={() => setShowNaverConnect(true)}
+        onNaverDisconnect={handleDisconnectNaver}
         onSourceFilterChange={handleSourceFilterChange}
         onMobileMenuToggle={() => setMobileMenuOpen(true)}
       />

@@ -64,6 +64,18 @@ async def connect_naver(
     return {"status": "connected", "naver_email": req.naver_email}
 
 
+@router.delete("/disconnect")
+async def disconnect_naver(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Disconnect Naver account by clearing credentials."""
+    user.naver_email = None
+    user.naver_app_password = None
+    await db.commit()
+    return {"status": "disconnected"}
+
+
 @router.get("/folders")
 async def get_folders(
     user: User = Depends(get_naver_user),
